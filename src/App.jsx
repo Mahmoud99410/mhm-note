@@ -1,0 +1,173 @@
+import { useEffect, useRef, useState, createContext, useContext, useCallback } from 'react';
+import { NotebookPen, Home as HomeIco, Star, Archive as ArchiveIco, Trash2, Settings as SetIco, Lock } from 'lucide-react';
+import { LangCtx, useSettings, getSettings } from './settings';
+import { strings } from './i18n';
+import * as V from './vault';
+import { Setup, Unlock, RecoveryKeyScreen } from './components/Auth';
+import { ToastHost } from './components/ui';
+import Home from './components/Home';
+import FolderView from './components/Folder';
+import ItemView from './components/ItemView';
+import { SearchView, TrashView, ArchiveView, FavoritesView } from './components/Lists';
+import SettingsView from './components/SettingsView';
+import { FOLDER_ICONS } from './constants';
+
+const NavCtx = createContext(null);
+export const useNav = () => useContext(NavCtx);
+
+export default function App() {
+  const settings = useSettings();
+  const t = strings[settings.lang] || strings.ar;
+  const [phase, setPhase] = useState('loading'); // loading | setup | recovery | locked | open
+  const [recoveryKey, setRecoveryKey] = useState('');
+
+  useEffect(() => {
+    V.vaultExists().then((x) => setPhase(x ? 'locked' : 'setup'));
+  }, []);
+
+  const doLock = useCallback(async () => {
+    V.clearOpened();
+    await V.lock();
+    setPhase('locked');
+  }, []);
+
+  // auto-lock after inactivity / while in background
+  useEffect(() => {
+    if (phase !== 'open') return;
+    let last = Date.now();
+    let hiddenAt = 0;
+    const bump = () => (last = Date.now());
+    const evs = ['pointerdown', 'keydown', 'wheel', 'touchstart'];
+    evs.forEach((e) => window.addEventListener(e, bump, { passive: true }));
+    const vis = () => {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+        V.flush();
+      } else if (hiddenAt) {
+        const mins = getSettings().autoLock;
+        if (mins > 0 && Date.now() - hiddenAt > mins * 60000) doLock();
+        hiddenAt = 0;
+        bump();
+      }
+    };
+    document.addEventListener('visibilitychange', vis);
+    const iv = setInterval(() => {
+      const mins = getSettings().autoLock;
+      if (mins > 0 && Date.now() - last > mins * 60000) doLock();
+    }, 15000);
+    const unload = () => V.flush();
+    window.addEventListener('beforeunload', unload);
+    return () => {
+      evs.forEach((e) => window.removeEventListener(e, bump));
+      document.removeEventListener('visibilitychange', vis);
+      window.removeEventListener('beforeunload', unload);
+      clearInterval(iv);
+    };
+  }, [phase, doLock]);
+
+  let body;
+  if (phase === 'loading') body = <div className="auth" />;
+  else if (phase === 'setup') body = <Setup onCreated={(k) => { setRecoveryKey(k); setPhase('recovery'); }} />;
+  else if (phase === 'recovery') body = <RecoveryKeyScreen recoveryKey={recoveryKey} onDone={() => { setRecoveryKey(''); setPhase('open'); }} />;
+  else if (phase === 'locked') body = <Unlock onUnlocked={() => setPhase('open')} />;
+  else body = <Shell onLock={doLock} />;
+
+  return (
+    <LangCtx.Provider value={t}>
+      {body}
+      <ToastHost />
+    </LangCtx.Provider>
+  );
+}
+
+function Shell({ onLock }) {
+  const [stack, setStack] = useState([{ name: 'home' }]);
+  const stackRef = useRef(stack);
+  stackRef.current = stack;
+  const nav = {
+    route: stack[stack.length - 1],
+    go: (r) => setStack((s) => [...s, r]),
+    replace: (r) => setStack((s) => [...s.slice(0, -1), r]),
+    reset: (r) => setStack(r.name === 'home' ? [r] : [{ name: 'home' }, r]),
+    back: () => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)),
+    canBack: stack.length > 1,
+    lock: onLock,
+  };
+
+  // hardware back button (Android) and Escape / mouse back on desktop
+  useEffect(() => {
+    const onBack = () => {
+      if (document.querySelector('.scrim, .viewer')) return; // sheets handle themselves
+      if (stackRef.current.length > 1) setStack((s) => s.slice(0, -1));
+      else window.dispatchEvent(new Event('mhm-exit'));
+    };
+    window.addEventListener('mhm-back', onBack);
+    const mouse = (e) => e.button === 3 && onBack();
+    window.addEventListener('mouseup', mouse);
+    return () => {
+      window.removeEventListener('mhm-back', onBack);
+      window.removeEventListener('mouseup', mouse);
+    };
+  }, []);
+
+  const r = nav.route;
+  let view;
+  switch (r.name) {
+    case 'folder': view = <FolderView key={r.id} id={r.id} />; break;
+    case 'item': view = <ItemView key={r.id} id={r.id} />; break;
+    case 'search': view = <SearchView />; break;
+    case 'trash': view = <TrashView />; break;
+    case 'archive': view = <ArchiveView />; break;
+    case 'favorites': view = <FavoritesView />; break;
+    case 'settings': view = <SettingsView />; break;
+    default: view = <Home />;
+  }
+  return (
+    <NavCtx.Provider value={nav}>
+      <div className="app">
+        <Sidebar />
+        <main className="main">{view}</main>
+      </div>
+    </NavCtx.Provider>
+  );
+}
+
+function Sidebar() {
+  const t = useContext(LangCtx);
+  const nav = useNav();
+  const { folders, items } = V.useVault();
+  const r = nav.route;
+  const live = folders.filter((f) => !f.deletedAt && !f.archived).sort((a, b) => (b.pinned - a.pinned) || (a.order ?? 0) - (b.order ?? 0));
+  const count = (id) => items.filter((i) => i.folderId === id && !i.deletedAt && !i.archived).length;
+  const link = (name, Icon, label) => (
+    <button className={'side-link' + (r.name === name ? ' on' : '')} onClick={() => nav.reset({ name })}>
+      <span className="dot"><Icon size={16} /></span>{label}
+    </button>
+  );
+  return (
+    <aside className="sidebar">
+      <div className="side-brand"><span className="logo"><NotebookPen size={20} /></span>{t.appName}</div>
+      <nav className="side-nav">
+        {link('home', HomeIco, t.hello)}
+        {link('favorites', Star, t.favorites)}
+        <div className="side-label">{t.folders}</div>
+        {live.map((f) => {
+          const Icon = FOLDER_ICONS[f.icon] || FOLDER_ICONS.folder;
+          const on = (r.name === 'folder' && r.id === f.id) || (r.name === 'item' && items.find((i) => i.id === r.id)?.folderId === f.id);
+          return (
+            <button key={f.id} className={'side-link' + (on ? ' on' : '')} style={{ '--fc': f.color }} onClick={() => nav.reset({ name: 'folder', id: f.id })}>
+              <span className="dot"><Icon size={15} /></span>
+              <span className="ellipsis">{f.name}</span>
+              <span className="n">{f.lock ? <Lock size={12} /> : count(f.id)}</span>
+            </button>
+          );
+        })}
+        <div className="side-label" />
+        {link('archive', ArchiveIco, t.archive)}
+        {link('trash', Trash2, t.trash)}
+        {link('settings', SetIco, t.settings)}
+      </nav>
+      <button className="side-link" onClick={nav.lock}><span className="dot"><Lock size={16} /></span>{t.lockNow}</button>
+    </aside>
+  );
+}

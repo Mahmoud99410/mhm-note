@@ -1,0 +1,9 @@
+node_modules
+dist
+release
+android/app/build
+android/build
+android/.gradle
+android/app/src/main/assets/public
+android/capacitor-cordova-android-plugins/build
+build/icon-1024.png

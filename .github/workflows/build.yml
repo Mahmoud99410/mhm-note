@@ -1,0 +1,59 @@
+name: Build MHM NOTE
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  VERSION_NAME: 0.1.${{ github.run_number }}
+  VERSION_CODE: ${{ github.run_number }}
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - run: npm ci
+        env: { ELECTRON_SKIP_BINARY_DOWNLOAD: 1 }
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Build signed APK
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon
+      - run: mv android/app/build/outputs/apk/release/app-release.apk MHM-NOTE-${{ env.VERSION_NAME }}.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: android-apk, path: '*.apk' }
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - run: npm version ${{ env.VERSION_NAME }} --no-git-tag-version --allow-same-version
+      - run: npx electron-builder --win nsis portable --x64 --publish never
+        env: { CSC_IDENTITY_AUTO_DISCOVERY: false }
+      - uses: actions/upload-artifact@v4
+        with: { name: windows-exe, path: 'release/*.exe' }
+
+  release:
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION_NAME }}
+          name: MHM NOTE v${{ env.VERSION_NAME }}
+          files: out/*

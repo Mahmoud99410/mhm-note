@@ -1,0 +1,6 @@
+{
+  "appId": "com.mhm.note",
+  "appName": "MHM NOTE",
+  "webDir": "dist",
+  "android": { "allowMixedContent": false, "backgroundColor": "#17845a" }
+}
