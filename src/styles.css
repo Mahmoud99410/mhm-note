@@ -430,3 +430,10 @@ mark { background: var(--gold-soft); color: inherit; border-radius: 4px; padding
   .toolbar .sep { margin: 6px 1px; }
   .recovery-box { font-size: 15px; letter-spacing: 0.6px; }
 }
+.spin { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.switch { width: 50px; height: 30px; border-radius: 15px; background: var(--surface-3); position: relative; transition: background 0.2s; flex-shrink: 0; }
+.switch::after { content: ''; position: absolute; top: 3px; inset-inline-start: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: inset-inline-start 0.2s; }
+.switch.on { background: var(--primary); }
+.switch.on::after { inset-inline-start: 23px; }
+.bio-btn { width: 64px; height: 64px; border-radius: 22px; margin: 16px auto 0; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); }

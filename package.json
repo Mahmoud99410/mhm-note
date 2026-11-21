@@ -13,8 +13,10 @@
   "author": "Mahmoud",
   "license": "ISC",
   "dependencies": {
-    "@capacitor/app": "^6.0.3",
-    "@capacitor/core": "^6.2.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.2",
+    "@capgo/capacitor-native-biometric": "^8.9.3",
+    "@capgo/capacitor-social-login": "^8.7.13",
     "@fontsource/cairo": "^5.3.0",
     "@fontsource/inter": "^5.3.0",
     "hash-wasm": "^4.13.0",
@@ -23,8 +25,8 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@capacitor/android": "^6.2.3",
-    "@capacitor/cli": "^6.2.3",
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/cli": "^8.6.2",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",

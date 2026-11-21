@@ -11,6 +11,8 @@ import ItemView from './components/ItemView';
 import { SearchView, TrashView, ArchiveView, FavoritesView } from './components/Lists';
 import SettingsView from './components/SettingsView';
 import { FOLDER_ICONS } from './constants';
+import { syncNow, syncSoon, resetSyncStatus } from './sync';
+import { SyncBadge } from './components/Cloud';
 
 const NavCtx = createContext(null);
 export const useNav = () => useContext(NavCtx);
@@ -27,7 +29,11 @@ export default function App() {
 
   const doLock = useCallback(async () => {
     V.clearOpened();
+    try {
+      await syncNow();
+    } catch {}
     await V.lock();
+    resetSyncStatus();
     setPhase('locked');
   }, []);
 
@@ -42,7 +48,7 @@ export default function App() {
     const vis = () => {
       if (document.hidden) {
         hiddenAt = Date.now();
-        V.flush();
+        V.flush().then(() => syncNow());
       } else if (hiddenAt) {
         const mins = getSettings().autoLock;
         if (mins > 0 && Date.now() - hiddenAt > mins * 60000) doLock();
@@ -51,6 +57,8 @@ export default function App() {
       }
     };
     document.addEventListener('visibilitychange', vis);
+    syncNow();
+    const syncIv = setInterval(() => syncNow(), 120000);
     const iv = setInterval(() => {
       const mins = getSettings().autoLock;
       if (mins > 0 && Date.now() - last > mins * 60000) doLock();
@@ -62,12 +70,13 @@ export default function App() {
       document.removeEventListener('visibilitychange', vis);
       window.removeEventListener('beforeunload', unload);
       clearInterval(iv);
+      clearInterval(syncIv);
     };
   }, [phase, doLock]);
 
   let body;
   if (phase === 'loading') body = <div className="auth" />;
-  else if (phase === 'setup') body = <Setup onCreated={(k) => { setRecoveryKey(k); setPhase('recovery'); }} />;
+  else if (phase === 'setup') body = <Setup onCreated={(k) => { setRecoveryKey(k); setPhase('recovery'); }} onRestored={() => setPhase('open')} />;
   else if (phase === 'recovery') body = <RecoveryKeyScreen recoveryKey={recoveryKey} onDone={() => { setRecoveryKey(''); setPhase('open'); }} />;
   else if (phase === 'locked') body = <Unlock onUnlocked={() => setPhase('open')} />;
   else body = <Shell onLock={doLock} />;
@@ -82,6 +91,15 @@ export default function App() {
 
 function Shell({ onLock }) {
   const [stack, setStack] = useState([{ name: 'home' }]);
+  const vstate = V.useVault();
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    syncSoon();
+  }, [vstate]);
   const stackRef = useRef(stack);
   stackRef.current = stack;
   const nav = {

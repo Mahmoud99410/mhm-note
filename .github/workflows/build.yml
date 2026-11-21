@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 env:
-  VERSION_NAME: 0.1.${{ github.run_number }}
+  VERSION_NAME: 0.2.${{ github.run_number }}
   VERSION_CODE: ${{ github.run_number }}
 
 jobs:
@@ -18,9 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
+        with: { node-version: 22, cache: npm }
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 17 }
+        with: { distribution: temurin, java-version: 21 }
       - run: npm ci
         env: { ELECTRON_SKIP_BINARY_DOWNLOAD: 1 }
       - run: npm run build
@@ -43,7 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
+        with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npm run build
       - run: npm version ${{ env.VERSION_NAME }} --no-git-tag-version --allow-same-version

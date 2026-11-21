@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { NotebookPen, Copy, ShieldCheck, Languages } from 'lucide-react';
+import { useEffect } from 'react';
+import { NotebookPen, Copy, ShieldCheck, Languages, Fingerprint, CloudDownload } from 'lucide-react';
+import * as N from '../native';
+import { RestoreFromCloud } from './Cloud';
 import { useT, useSettings, setSettings } from '../settings';
 import { PasswordInput, copyText } from './ui';
 import * as V from '../vault';
@@ -25,9 +28,10 @@ function Shell({ children }) {
   );
 }
 
-export function Setup({ onCreated }) {
+export function Setup({ onCreated, onRestored }) {
   const t = useT();
   const s = useSettings();
+  const [restore, setRestore] = useState(false);
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [err, setErr] = useState('');
@@ -39,6 +43,7 @@ export function Setup({ onCreated }) {
     const key = await V.createVault(pw, seedFolders(s.lang));
     onCreated(key);
   };
+  if (restore) return <Shell><RestoreFromCloud onDone={onRestored} onBack={() => setRestore(false)} /></Shell>;
   return (
     <Shell>
       <h1>{t.appName}</h1>
@@ -48,6 +53,9 @@ export function Setup({ onCreated }) {
       <div className="field"><label>{t.confirmPassword}</label><PasswordInput value={pw2} onChange={(v) => { setPw2(v); setErr(''); }} onEnter={go} autoComplete="new-password" /></div>
       {err && <div className="error">{err}</div>}
       <button className="btn block" disabled={busy} onClick={go}>{busy ? t.creating : t.createVault}</button>
+      {N.platform !== 'web' && (
+        <button className="link-btn" onClick={() => setRestore(true)}><CloudDownload size={16} style={{ verticalAlign: -3, marginInlineEnd: 6 }} />{t.restoreFromCloud}</button>
+      )}
     </Shell>
   );
 }
@@ -73,6 +81,23 @@ export function Unlock({ onUnlocked }) {
   const [mode, setMode] = useState('pw');
   const [rk, setRk] = useState('');
   const [npw, setNpw] = useState('');
+  const bio = N.bioEnabled() && N.platform !== 'web';
+  const tryBio = async () => {
+    setErr('');
+    try {
+      const key = await N.bioGet(t);
+      setBusy(true);
+      await V.unlockWithRawKey(key);
+      onUnlocked();
+    } catch {
+      setBusy(false);
+      setErr(t.bioFailed);
+    }
+  };
+  useEffect(() => {
+    if (bio) tryBio();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const go = async () => {
     if (!pw) return;
     setBusy(true);
@@ -116,6 +141,7 @@ export function Unlock({ onUnlocked }) {
       <div className="field"><label>{t.masterPassword}</label><PasswordInput value={pw} onChange={(v) => { setPw(v); setErr(''); }} autoFocus onEnter={go} autoComplete="current-password" /></div>
       {err && <div className="error">{err}</div>}
       <button className="btn block" disabled={busy || !pw} onClick={go}>{busy ? t.unlocking : t.unlock}</button>
+      {bio && <button className="bio-btn" title={t.bioUnlock} onClick={tryBio}><Fingerprint size={34} /></button>}
       <button className="link-btn" onClick={() => { setMode('recover'); setErr(''); }}>{t.forgotPassword}</button>
     </Shell>
   );

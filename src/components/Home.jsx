@@ -6,6 +6,7 @@ import * as V from '../vault';
 import { FOLDER_ICONS, COLORS } from '../constants';
 import { Sheet, MenuSheet, SetLockSheet, toast } from './ui';
 import { ItemRow } from './Folder';
+import { SyncBadge } from './Cloud';
 
 export function FolderSheet({ folder, onClose }) {
   const t = useT();
@@ -138,6 +139,7 @@ export default function Home() {
         <div className="container">
           <div className="row">
             <div className="brand grow"><span className="logo"><NotebookPen size={20} /></span>{t.appName}</div>
+            <SyncBadge />
             <button className="icon-btn hide-desktop" onClick={() => nav.go({ name: 'settings' })} title={t.settings}><Settings size={21} /></button>
             <button className="icon-btn" onClick={nav.lock} title={t.lockNow}><Lock size={21} /></button>
           </div>

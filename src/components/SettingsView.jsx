@@ -5,8 +5,9 @@ import { useNav } from '../App';
 import * as V from '../vault';
 import { BackBtn } from './Folder';
 import { Sheet, PasswordInput, copyText, toast } from './ui';
+import { SyncSection, BiometricRow } from './Cloud';
 
-export const APP_VERSION = '0.1.0';
+export const APP_VERSION = '0.2.0';
 
 function ChangePassword({ onClose }) {
   const t = useT();
@@ -114,8 +115,11 @@ export default function SettingsView() {
             </div>
           </div>
 
+          <SyncSection />
+
           <div className="side-label" style={{ paddingInline: 4 }}>{t.security}</div>
           <div className="settings-group">
+            <BiometricRow />
             <div className="setting">
               <Lock size={19} className="muted" />
               <span className="lbl">{t.autoLock}</span>

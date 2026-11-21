@@ -41,6 +41,10 @@ function reqP(req) {
   });
 }
 
+export async function clearAll() {
+  for (const st of ['meta', 'records', 'blobs']) await tx(st, 'readwrite', (s) => s.clear());
+}
+
 export const db = {
   getMeta: (k) => tx('meta', 'readonly', (s) => reqP(s.get(k))),
   setMeta: (k, v) => tx('meta', 'readwrite', (s) => s.put(v, k)),
@@ -48,6 +52,7 @@ export const db = {
   putRecord: (r) => tx('records', 'readwrite', (s) => s.put(r)),
   putRecords: (rs) => tx('records', 'readwrite', (s) => rs.forEach((r) => s.put(r))),
   deleteRecord: (id) => tx('records', 'readwrite', (s) => s.delete(id)),
+  allBlobKeys: () => tx('blobs', 'readonly', (s) => reqP(s.getAllKeys())),
   getBlob: (id) => tx('blobs', 'readonly', (s) => reqP(s.get(id))),
   putBlob: (b) => tx('blobs', 'readwrite', (s) => s.put(b)),
   deleteBlob: (id) => tx('blobs', 'readwrite', (s) => s.delete(id)),
