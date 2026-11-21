@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Plus, Lock, Pin, Star, MoreVertical, Mail, KeyRound, Phone, Copy, Search, X } from 'lucide-react';
-import { useT, useSettings } from '../settings';
+import { ArrowRight, Plus, Lock, Pin, Star, MoreVertical, Mail, KeyRound, Phone, Copy, Search, X, ArrowUpDown, Check } from 'lucide-react';
+import { useT, useSettings, setSettings } from '../settings';
 import { useNav } from '../App';
 import * as V from '../vault';
-import { platformColor, htmlToText, fmtDate, FOLDER_ICONS, PAGE_COLORS } from '../constants';
-import { LockGate, copyText } from './ui';
+import { platformColor, htmlToText, fmtFull, FOLDER_ICONS, PAGE_COLORS, sortList } from '../constants';
+import { LockGate, copyText, Sheet } from './ui';
 import { useFolderMenu } from './Home';
 import { isDark } from '../settings';
 
@@ -61,6 +61,7 @@ export function ItemRow({ it, showFolder }) {
         <div className="grow">
           <div className="t ellipsis auto-dir">{it.title || t.untitled}</div>
           <div className="s ellipsis ltr" style={{ textAlign: 'start' }}>{locked ? '••••••••' : it.email || it.username || ''}</div>
+          <div className="date-line">✎ {fmtFull(it.updatedAt, s.lang)}</div>
           {folderTag}
         </div>
         {icons}
@@ -81,6 +82,7 @@ export function ItemRow({ it, showFolder }) {
         <div className="grow">
           <div className="t ellipsis auto-dir">{it.title || t.untitled}</div>
           <div className="s ellipsis ltr" style={{ textAlign: 'start' }}>{locked ? '••• ••• ••••' : num}</div>
+          <div className="date-line">✎ {fmtFull(it.updatedAt, s.lang)}</div>
           {folderTag}
         </div>
         {icons}
@@ -107,13 +109,30 @@ export function ItemRow({ it, showFolder }) {
       {!locked && it.attachments?.length > 0 && (
         <div className="thumbs">{it.attachments.slice(0, 4).map((a) => <Thumb key={a.id} id={a.id} />)}</div>
       )}
-      <div className="foot">{folderTag}<span>{fmtDate(it.updatedAt, s.lang)}</span></div>
+      <div className="foot">{folderTag}<span>🕒 {fmtFull(it.createdAt, s.lang)}</span>{it.updatedAt - (it.createdAt || 0) > 60000 && <span>✎ {fmtFull(it.updatedAt, s.lang)}</span>}</div>
     </div>
   );
 }
 
 export function sortItems(list) {
-  return [...list].sort((a, b) => (b.pinned - a.pinned) || (b.updatedAt - a.updatedAt));
+  return sortList(list, 'updated');
+}
+
+export function SortSheet({ onClose }) {
+  const t = useT();
+  const s = useSettings();
+  return (
+    <Sheet title={t.sortBy} onClose={onClose}>
+      <div className="menu-list">
+        {['updated', 'created', 'oldest', 'name'].map((k) => (
+          <button key={k} className="menu-item" onClick={() => { setSettings({ sortBy: k }); onClose(); }}>
+            <span className="grow">{t['sort_' + k]}</span>
+            {(s.sortBy || 'updated') === k && <Check size={18} style={{ color: 'var(--primary)' }} />}
+          </button>
+        ))}
+      </div>
+    </Sheet>
+  );
 }
 
 export default function FolderView({ id }) {
@@ -123,6 +142,8 @@ export default function FolderView({ id }) {
   const [, force] = useState(0);
   const [q, setQ] = useState(null);
   const [openMenu, menuEl] = useFolderMenu();
+  const [sorting, setSorting] = useState(false);
+  const st = useSettings();
   const f = folders.find((x) => x.id === id);
   if (!f) return <div className="scroll"><div className="topbar"><BackBtn /></div></div>;
   const Icon = FOLDER_ICONS[f.icon] || FOLDER_ICONS.folder;
@@ -132,7 +153,7 @@ export default function FolderView({ id }) {
     const n = q.toLowerCase();
     list = list.filter((i) => [i.title, i.email, i.username, htmlToText(i.html), i.notes, ...(i.phones || []).map((p) => p.number)].join(' ').toLowerCase().includes(n));
   }
-  list = sortItems(list);
+  list = sortList(list, st.sortBy);
   const add = () => {
     const it = newItemFor(f);
     V.saveItem(it);
@@ -147,6 +168,7 @@ export default function FolderView({ id }) {
           <>
             <span className="folder-ico" style={{ '--fc': f.color, width: 34, height: 34, borderRadius: 11 }}><Icon size={18} /></span>
             <h1 style={{ marginInlineStart: 6 }}>{f.name}</h1>
+            {!locked && <button className="icon-btn" title={t.sortBy} onClick={() => setSorting(true)}><ArrowUpDown size={20} /></button>}
             {!locked && <button className="icon-btn" onClick={() => setQ('')}><Search size={20} /></button>}
             <button className="icon-btn" onClick={() => openMenu(f)}><MoreVertical size={20} /></button>
           </>
@@ -181,6 +203,7 @@ export default function FolderView({ id }) {
         <button className="fab" onClick={add}><Plus size={24} /><span>{addLabel}</span></button>
       )}
       {menuEl}
+      {sorting && <SortSheet onClose={() => setSorting(false)} />}
     </>
   );
 }

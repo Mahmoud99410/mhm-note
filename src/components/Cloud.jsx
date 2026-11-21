@@ -25,6 +25,7 @@ export function errText(t, e) {
   if (c === 'GOOGLE_NOT_CONFIGURED') return t.googleNotReady;
   if (c === 'TFA') return t.pcloudTfa;
   if (c === 'LOGIN') return t.loginFailed;
+  if (c === 'PCLOUD') return t.loginFailed + ' — ' + (e.detail || '');
   return t.syncError + (typeof c === 'string' ? ': ' + c.slice(0, 80) : '');
 }
 

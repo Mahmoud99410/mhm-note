@@ -131,7 +131,8 @@ export default function Home() {
   const visible = items.filter((i) => !i.deletedAt && !i.archived && !deadFolders.has(i.folderId));
   const count = (id) => visible.filter((i) => i.folderId === id).length;
   const pinned = visible.filter((i) => i.pinned).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6);
-  const hour = new Date().getHours();
+  const pinnedIds = new Set(pinned.map((i) => i.id));
+  const recent = visible.filter((i) => !pinnedIds.has(i.id)).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 5);
 
   return (
     <div className="scroll">
@@ -162,6 +163,13 @@ export default function Home() {
           <>
             <div className="section-title"><h3>📌 {t.pinned}</h3></div>
             <div className="list">{pinned.map((it) => <ItemRow key={it.id} it={it} showFolder />)}</div>
+          </>
+        )}
+
+        {recent.length > 0 && (
+          <>
+            <div className="section-title"><h3>🕒 {t.recentEdits}</h3></div>
+            <div className="list">{recent.map((it) => <ItemRow key={it.id} it={it} showFolder />)}</div>
           </>
         )}
 

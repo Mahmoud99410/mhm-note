@@ -97,13 +97,20 @@ export async function pcloudLogin(email, password) {
   let last = null;
   for (const host of PC_HOSTS) {
     const body = `getauth=1&logout=1&device=${enc('MHM NOTE')}&username=${enc(email)}&password=${enc(password)}`;
-    const r = await http(`${host}/userinfo`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
-    const d = await json(r, 'pcloud');
+    let d;
+    try {
+      const r = await http(`${host}/userinfo`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+      d = await json(r, 'pcloud');
+    } catch (e) {
+      last = { error: 'network: ' + (e.message || e), result: 'NET' };
+      continue;
+    }
     if (d?.result === 0 && d.auth) return { host, auth: d.auth, email: d.email || email };
     last = d;
   }
   const code = last?.result;
-  throw Object.assign(new Error(last?.error || 'PCLOUD_LOGIN'), { code: code === 2297 || code === 2064 ? 'TFA' : 'LOGIN' });
+  if (code === 2297 || code === 2064) throw Object.assign(new Error('TFA'), { code: 'TFA' });
+  throw Object.assign(new Error(`pCloud: ${last?.error || 'login failed'} (${code ?? '?'})`), { code: 'PCLOUD', detail: `${last?.error || ''} (${code ?? '?'})` });
 }
 
 export function pcloud(creds) {

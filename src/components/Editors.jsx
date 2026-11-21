@@ -1,8 +1,18 @@
 import { useState } from 'react';
 import { Copy, Eye, EyeOff, ExternalLink, Phone, Plus, X } from 'lucide-react';
-import { useT } from '../settings';
-import { PLATFORMS, platformColor, COLORS } from '../constants';
+import { useT, useSettings } from '../settings';
+import { PLATFORMS, platformColor, COLORS, fmtFull } from '../constants';
 import { copyText } from './ui';
+
+function Dates({ it }) {
+  const t = useT();
+  const s = useSettings();
+  return (
+    <p className="hint" style={{ textAlign: 'center', marginTop: 18 }}>
+      🕒 {t.createdAt}: {fmtFull(it.createdAt, s.lang)}<br />✎ {t.modifiedAt}: {fmtFull(it.updatedAt, s.lang)}
+    </p>
+  );
+}
 
 function CopyField({ kind, label, value, onChange, secret, ltr = true, type = 'text', extra }) {
   const t = useT();
@@ -88,6 +98,7 @@ export function AccountEditor({ it, update }) {
             {COLORS.map((c) => <button key={c} className={'swatch' + (it.color === c ? ' on' : '')} style={{ background: c }} onClick={() => update({ color: c })} />)}
           </div>
         </div>
+        <Dates it={it} />
       </div>
     </div>
   );
@@ -140,6 +151,7 @@ export function ContactEditor({ it, update }) {
             <textarea className="auto-dir" value={it.notes || ''} onChange={(e) => update({ notes: e.target.value })} rows={4} />
           </div>
         </div>
+        <Dates it={it} />
       </div>
     </div>
   );

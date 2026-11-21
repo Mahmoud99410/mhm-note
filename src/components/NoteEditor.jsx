@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Undo2, Redo2, Bold, Palette, Type, List, ListChecks, ImagePlus, PaintBucket, Rows3, X, Trash2 } from 'lucide-react';
 import { useT, useSettings, isDark } from '../settings';
 import * as V from '../vault';
-import { PAGE_COLORS, TEXT_COLORS, FONT_SIZES, fmtDate } from '../constants';
+import { PAGE_COLORS, TEXT_COLORS, FONT_SIZES, fmtFull } from '../constants';
 import { Confirm } from './ui';
 
 const SENTINEL_COLOR = 'rgb(1, 2, 3)';
@@ -393,7 +393,8 @@ export default function NoteEditor({ it, update }) {
             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), ref.current.focus())}
           />
           <div className="edit-meta">
-            {t.lastEdit}: {fmtDate(it.updatedAt, s.lang)}
+            <span>🕒 {t.createdAt}: {fmtFull(it.createdAt, s.lang)}</span>
+            <span>✎ {t.modifiedAt}: {fmtFull(it.updatedAt, s.lang)}</span>
           </div>
           <div
             ref={ref}

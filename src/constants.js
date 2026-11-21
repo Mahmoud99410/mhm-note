@@ -76,3 +76,22 @@ export function fmtDate(ts, lang) {
   if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' });
   return d.toLocaleDateString(loc, { day: 'numeric', month: 'short', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
 }
+
+// Full date + time, e.g. "22 نوفمبر 2026، 1:39 م"
+export function fmtFull(ts, lang) {
+  if (!ts) return '';
+  const loc = lang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-GB';
+  const d = new Date(ts);
+  return d.toLocaleDateString(loc, { day: 'numeric', month: 'long', year: 'numeric' }) + ' ' + d.toLocaleTimeString(loc, { hour: 'numeric', minute: '2-digit' });
+}
+
+export function sortList(list, by = 'updated') {
+  const pin = (a, b) => b.pinned - a.pinned;
+  const cmp = {
+    updated: (a, b) => b.updatedAt - a.updatedAt,
+    created: (a, b) => (b.createdAt || 0) - (a.createdAt || 0),
+    oldest: (a, b) => (a.createdAt || 0) - (b.createdAt || 0),
+    name: (a, b) => (a.title || '').localeCompare(b.title || '', 'ar'),
+  }[by] || ((a, b) => b.updatedAt - a.updatedAt);
+  return [...list].sort((a, b) => pin(a, b) || cmp(a, b));
+}
