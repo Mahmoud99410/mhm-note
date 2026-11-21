@@ -19,9 +19,9 @@ android {
     signingConfigs {
         release {
             storeFile file("mhm-note.keystore")
-            storePassword "MhmNote2026Key"
+            storePassword System.getenv("KEYSTORE_PASSWORD")
             keyAlias "mhmnote"
-            keyPassword "MhmNote2026Key"
+            keyPassword System.getenv("KEYSTORE_PASSWORD")
         }
     }
     buildTypes {

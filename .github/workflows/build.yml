@@ -25,8 +25,14 @@ jobs:
         env: { ELECTRON_SKIP_BINARY_DOWNLOAD: 1 }
       - run: npm run build
       - run: npx cap sync android
+      - name: Decrypt signing key
+        env: { KEYSTORE_PASSWORD: '${{ secrets.KEYSTORE_PASSWORD }}' }
+        run: |
+          if [ -z "$KEYSTORE_PASSWORD" ]; then echo "::error::Add the KEYSTORE_PASSWORD secret in Settings > Secrets and variables > Actions"; exit 1; fi
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in android/app/mhm-note.keystore.enc -out android/app/mhm-note.keystore -pass env:KEYSTORE_PASSWORD
       - name: Build signed APK
         working-directory: android
+        env: { KEYSTORE_PASSWORD: '${{ secrets.KEYSTORE_PASSWORD }}' }
         run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon
       - run: mv android/app/build/outputs/apk/release/app-release.apk MHM-NOTE-${{ env.VERSION_NAME }}.apk
       - uses: actions/upload-artifact@v4
