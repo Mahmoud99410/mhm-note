@@ -8,3 +8,6 @@ export const GOOGLE = {
 };
 export const DRIVE_FOLDER = 'MHM NOTE';
 export const PCLOUD_FOLDER = '/MHM NOTE';
+
+// pCloud app (docs.pcloud.com → My applications). Used for "sign in on pCloud's page".
+export const PCLOUD = { clientId: '', clientSecret: '' };

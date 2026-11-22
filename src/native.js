@@ -177,3 +177,10 @@ export async function bioDisable() {
     if (platform === 'electron') await E().secureDel('bio-key');
   } catch {}
 }
+
+export async function openExternal(url) {
+  if (platform === 'android') {
+    const { Browser } = await import('@capacitor/browser');
+    await Browser.open({ url });
+  } else window.open(url, '_blank');
+}

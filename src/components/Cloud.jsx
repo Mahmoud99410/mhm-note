@@ -3,7 +3,7 @@ import { Cloud, CloudOff, RefreshCw, HardDrive, AlertTriangle, CheckCircle2, Log
 import { useT, useSettings } from '../settings';
 import * as V from '../vault';
 import * as N from '../native';
-import { googleDrive, pcloud, pcloudLogin } from '../cloud';
+import { googleDrive, pcloud, pcloudLogin, pcloudOAuthReady, pcloudAuthUrl, pcloudExchange } from '../cloud';
 import { syncNow, useSyncStatus, readRemote } from '../sync';
 import { Sheet, PasswordInput, Confirm, toast } from './ui';
 import { fmtDate } from '../constants';
@@ -31,15 +31,19 @@ export function errText(t, e) {
 
 export function PcloudLoginSheet({ onDone, onClose }) {
   const t = useT();
+  const oauth = pcloudOAuthReady();
+  const [mode, setMode] = useState(oauth ? 'page' : 'password');
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
+  const [code, setCode] = useState('');
+  const [opened, setOpened] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
-  const go = async () => {
+  const finish = async (getCreds) => {
     setBusy(true);
     setErr('');
     try {
-      const creds = await pcloudLogin(email.trim(), pw);
+      const creds = await getCreds();
       setPw('');
       await onDone(creds);
       onClose();
@@ -50,11 +54,35 @@ export function PcloudLoginSheet({ onDone, onClose }) {
   };
   return (
     <Sheet title={t.pcloud} onClose={onClose}>
-      <div className="field"><label>{t.pcloudEmail}</label><div className="input-wrap"><input className="ltr" style={{ textAlign: 'start' }} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus autoComplete="username" /></div></div>
-      <div className="field"><label>{t.pcloudPassword}</label><PasswordInput value={pw} onChange={setPw} onEnter={go} /></div>
-      <p className="hint" style={{ marginTop: -4 }}>🔒 {t.pcloudHint}</p>
-      {err && <div className="error">{err}</div>}
-      <button className="btn block" disabled={busy || !email || !pw} onClick={go}>{busy ? '…' : t.connect}</button>
+      {oauth && (
+        <div className="seg" style={{ marginBottom: 16 }}>
+          <button className={mode === 'page' ? 'on' : ''} onClick={() => setMode('page')}>{t.pcloudViaPage}</button>
+          <button className={mode === 'password' ? 'on' : ''} onClick={() => setMode('password')}>{t.pcloudViaPassword}</button>
+        </div>
+      )}
+      {mode === 'page' ? (
+        <>
+          <p className="hint">{t.pcloudPageHint}</p>
+          <button className="btn ghost block" style={{ marginBottom: 14 }} onClick={() => { N.openExternal(pcloudAuthUrl()); setOpened(true); }}>
+            <PcloudIcon />{t.pcloudOpenPage}
+          </button>
+          {opened && (
+            <>
+              <div className="field"><label>{t.pcloudCode}</label><div className="input-wrap"><input className="ltr" style={{ textAlign: 'start' }} value={code} onChange={(e) => setCode(e.target.value)} autoFocus /></div></div>
+              {err && <div className="error">{err}</div>}
+              <button className="btn block" disabled={busy || code.trim().length < 6} onClick={() => finish(() => pcloudExchange(code))}>{busy ? '…' : t.connect}</button>
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="field"><label>{t.pcloudEmail}</label><div className="input-wrap"><input className="ltr" style={{ textAlign: 'start' }} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus autoComplete="username" /></div></div>
+          <div className="field"><label>{t.pcloudPassword}</label><PasswordInput value={pw} onChange={setPw} onEnter={() => finish(() => pcloudLogin(email.trim(), pw))} /></div>
+          <p className="hint" style={{ marginTop: -4 }}>🔒 {t.pcloudHint}</p>
+          {err && <div className="error">{err}</div>}
+          <button className="btn block" disabled={busy || !email || !pw} onClick={() => finish(() => pcloudLogin(email.trim(), pw))}>{busy ? '…' : t.connect}</button>
+        </>
+      )}
     </Sheet>
   );
 }

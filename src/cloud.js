@@ -1,6 +1,6 @@
 // Cloud storage adapters. Each stores one encrypted vault file plus one file per encrypted image.
 import { http, googleToken, dropGoogleToken } from './native';
-import { DRIVE_FOLDER, PCLOUD_FOLDER } from './config';
+import { DRIVE_FOLDER, PCLOUD_FOLDER, PCLOUD } from './config';
 
 const VAULT_FILE = 'mhm-vault.json';
 const BLOB_PREFIX = 'blob-';
@@ -113,11 +113,42 @@ export async function pcloudLogin(email, password) {
   throw Object.assign(new Error(`pCloud: ${last?.error || 'login failed'} (${code ?? '?'})`), { code: 'PCLOUD', detail: `${last?.error || ''} (${code ?? '?'})` });
 }
 
+// OAuth "code" flow without redirect: pCloud shows the user a code to paste back into the app
+export const pcloudOAuthReady = () => !!PCLOUD.clientId;
+export const pcloudAuthUrl = () => `https://my.pcloud.com/oauth2/authorize?client_id=${enc(PCLOUD.clientId)}&response_type=code`;
+export async function pcloudExchange(code) {
+  let token = null;
+  let lastErr = null;
+  for (const host of PC_HOSTS) {
+    try {
+      const body = `client_id=${enc(PCLOUD.clientId)}&client_secret=${enc(PCLOUD.clientSecret)}&code=${enc(code.trim())}`;
+      const d = await json(await http(`${host}/oauth2_token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body }), 'pcloud');
+      if (d?.result === 0 && d.access_token) {
+        token = d.access_token;
+        break;
+      }
+      lastErr = d;
+    } catch (e) {
+      lastErr = { error: e.message, result: 'NET' };
+    }
+  }
+  if (!token) throw Object.assign(new Error('pcloud'), { code: 'PCLOUD', detail: `${lastErr?.error || ''} (${lastErr?.result ?? '?'})` });
+  // find the data centre that holds this account
+  for (const host of PC_HOSTS) {
+    try {
+      const d = await json(await http(`${host}/userinfo?access_token=${enc(token)}`), 'pcloud');
+      if (d?.result === 0) return { host, token, email: d.email };
+    } catch {}
+  }
+  throw Object.assign(new Error('pcloud'), { code: 'PCLOUD', detail: 'userinfo' });
+}
+
 export function pcloud(creds) {
-  const { host, auth } = creds;
+  const { host } = creds;
+  const authParam = creds.token ? { access_token: creds.token } : { auth: creds.auth };
   let folderId = null;
   const call = async (method, params = {}, opts = {}) => {
-    const qs = Object.entries({ auth, ...params }).map(([k, v]) => `${k}=${enc(v)}`).join('&');
+    const qs = Object.entries({ ...authParam, ...params }).map(([k, v]) => `${k}=${enc(v)}`).join('&');
     const d = await json(await http(`${host}/${method}?${qs}`, opts), 'pcloud ' + method);
     if (d?.result === 1000 || d?.result === 2000) throw Object.assign(new Error('AUTH'), { code: 'AUTH' });
     if (d?.result !== 0) throw new Error(`pcloud ${method}: ${d?.result} ${d?.error}`);
