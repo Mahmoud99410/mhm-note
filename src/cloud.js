@@ -156,7 +156,10 @@ export function pcloud(creds) {
   };
   const folder = async () => {
     if (folderId) return folderId;
-    const d = await call('createfolderifnotexists', { path: PCLOUD_FOLDER });
+    // folderid 0 is the account root, or the app's own folder when the pCloud app has "Private" access
+    const d = creds.token
+      ? await call('createfolderifnotexists', { folderid: 0, name: PCLOUD_FOLDER.replace(/^\//, '') })
+      : await call('createfolderifnotexists', { path: PCLOUD_FOLDER });
     return (folderId = d.metadata.folderid);
   };
   const contents = async () => (await call('listfolder', { folderid: await folder() })).metadata.contents || [];
