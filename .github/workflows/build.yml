@@ -9,7 +9,12 @@ permissions:
   contents: write
 
 env:
-  VERSION_NAME: 0.4.${{ github.run_number }}
+  VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+  VITE_GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
+  VITE_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
+  VITE_PCLOUD_CLIENT_ID: ${{ secrets.PCLOUD_CLIENT_ID }}
+  VITE_PCLOUD_CLIENT_SECRET: ${{ secrets.PCLOUD_CLIENT_SECRET }}
+  VERSION_NAME: 0.5.${{ github.run_number }}
   VERSION_CODE: ${{ github.run_number }}
 
 jobs:
