@@ -12,6 +12,7 @@ async function json(res, what) {
     data = res.text ? JSON.parse(res.text) : null;
   } catch {}
   if (res.status === 401) throw Object.assign(new Error('AUTH'), { code: 'AUTH' });
+  if (res.status === 403 && /insufficient/i.test(res.text || '')) throw Object.assign(new Error('SCOPE'), { code: 'SCOPE' });
   if (res.status >= 400) throw new Error(`${what} ${res.status} ${res.text?.slice(0, 200)}`);
   return data;
 }
@@ -24,7 +25,7 @@ export function googleDrive({ interactive = false } = {}) {
   const call = async (url, opts = {}, what = 'drive', retry = true) => {
     const token = await googleToken(interactive);
     const res = await http(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + token } });
-    if (res.status === 401 && retry) {
+    if ((res.status === 401 || (res.status === 403 && /insufficient/i.test(res.text || ''))) && retry) {
       dropGoogleToken();
       return call(url, opts, what, false);
     }

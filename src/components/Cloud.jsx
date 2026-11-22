@@ -23,6 +23,7 @@ export function errText(t, e) {
   if (c === 'NEED_LOGIN' || c === 'AUTH') return t.needLogin;
   if (c === 'VAULT_MISMATCH') return t.vaultMismatch;
   if (c === 'GOOGLE_NOT_CONFIGURED') return t.googleNotReady;
+  if (c === 'SCOPE' || /SCOPE/.test(String(c))) return t.googleScope;
   if (c === 'TFA') return t.pcloudTfa;
   if (c === 'LOGIN') return t.loginFailed;
   if (c === 'PCLOUD') return t.loginFailed + ' — ' + (e.detail || '');

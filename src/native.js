@@ -48,14 +48,20 @@ export function googleConfigured() {
   return false;
 }
 
+async function androidLogin(silent) {
+  const S = await social();
+  const options = { scopes: [GOOGLE.scope] };
+  // silent: reuse the account that already approved MHM NOTE, without showing the account picker
+  if (silent) Object.assign(options, { filterByAuthorizedAccounts: true, autoSelectEnabled: true });
+  const res = await S.login({ provider: 'google', options });
+  return { email: res.result?.profile?.email, accessToken: res.result?.accessToken?.token };
+}
+
 export async function googleSignIn() {
   if (!googleConfigured()) throw new Error('GOOGLE_NOT_CONFIGURED');
   let email, accessToken, expiresIn = 3300;
   if (platform === 'android') {
-    const S = await social();
-    const res = await S.login({ provider: 'google', options: { scopes: [GOOGLE.scope], forceRefreshToken: true } });
-    email = res.result?.profile?.email;
-    accessToken = res.result?.accessToken?.token;
+    ({ email, accessToken } = await androidLogin(false));
   } else {
     const r = await E().googleSignIn({ clientId: GOOGLE.desktopClientId, clientSecret: GOOGLE.desktopClientSecret, scope: GOOGLE.scope });
     email = r.email;
@@ -73,12 +79,8 @@ export async function googleToken(interactive = false) {
   if (!googleAccount()) throw new Error('NEED_LOGIN');
   if (tok && tok.expiresAt > Date.now()) return tok.accessToken;
   if (platform === 'android') {
-    const S = await social();
     try {
-      await S.refresh({ provider: 'google', options: { scopes: [GOOGLE.scope] } });
-    } catch {}
-    try {
-      const r = await S.getAuthorizationCode({ provider: 'google' });
+      const r = await androidLogin(true);
       if (r.accessToken) {
         tok = { accessToken: r.accessToken, expiresAt: Date.now() + 50 * 60000 };
         return tok.accessToken;

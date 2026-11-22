@@ -146,6 +146,7 @@ ipcMain.handle('google-signin', async (_e, { clientId, clientSecret, scope }) =>
     });
   });
   const t = await tokenRequest({ client_id: clientId, client_secret: clientSecret, code, code_verifier: verifier, redirect_uri: redirect, grant_type: 'authorization_code' });
+  if (!String(t.scope || '').includes(scope)) throw new Error('SCOPE');
   if (t.refresh_token) secureSet('google-refresh', t.refresh_token);
   cached = { accessToken: t.access_token, exp: Date.now() + t.expires_in * 1000 };
   let email = null;
