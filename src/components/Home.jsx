@@ -172,20 +172,6 @@ export default function Home() {
           <button className="quick" onClick={() => nav.go({ name: 'trash' })}><Trash2 size={22} />{t.trash}</button>
         </div>
 
-        {pinned.length > 0 && (
-          <>
-            <div className="section-title"><h3>📌 {t.pinned}</h3></div>
-            <div className="list">{pinned.map((it) => <ItemRow key={it.id} it={it} showFolder />)}</div>
-          </>
-        )}
-
-        {recent.length > 0 && (
-          <>
-            <div className="section-title"><h3>🕒 {t.recentEdits}</h3></div>
-            <div className="list">{recent.map((it) => <ItemRow key={it.id} it={it} showFolder />)}</div>
-          </>
-        )}
-
         <div className="section-title">
           <h3>{t.folders}</h3>
           <div className="row" style={{ gap: 6 }}>
