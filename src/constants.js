@@ -32,15 +32,46 @@ export function platformColor(title, fallback) {
 }
 
 export const PAGE_COLORS = [
-  { id: 'default', light: null, dark: null },
-  { id: 'cream', light: '#fff8e1', dark: '#2a2614' },
-  { id: 'mint', light: '#e8f6ee', dark: '#14271e' },
-  { id: 'sky', light: '#e7f1fd', dark: '#142030' },
-  { id: 'rose', light: '#fdecef', dark: '#2c171c' },
-  { id: 'lavender', light: '#f0ecfd', dark: '#1f1a33' },
-  { id: 'sand', light: '#f5efe6', dark: '#29231b' },
-  { id: 'night', light: '#1b2420', dark: '#090d0b', text: '#e7efeb' },
+  { id: 'default' },
+  { id: 'cream', c: '#fff8e1' }, { id: 'lemon', c: '#fff3b0' }, { id: 'peach', c: '#ffe5d0' }, { id: 'apricot', c: '#ffd8b1' },
+  { id: 'coral', c: '#ffc9c2' }, { id: 'rose', c: '#fde2e7' }, { id: 'pink', c: '#ffd1e8' }, { id: 'lilac', c: '#f1dcff' },
+  { id: 'lavender', c: '#e6e1ff' }, { id: 'periwinkle', c: '#d9e4ff' }, { id: 'sky', c: '#dcefff' }, { id: 'ice', c: '#e3f7fb' },
+  { id: 'aqua', c: '#ccf3ee' }, { id: 'mint', c: '#d9f5e5' }, { id: 'sage', c: '#e3ecd9' }, { id: 'lime', c: '#ecf7c8' },
+  { id: 'sand', c: '#f5efe6' }, { id: 'beige', c: '#efe3cf' }, { id: 'stone', c: '#e9e7e2' }, { id: 'gray', c: '#e5e9ec' },
+  { id: 'night', c: '#1b2420', text: '#e7efeb' }, { id: 'navy', c: '#16213e', text: '#e6ecff' }, { id: 'forest', c: '#143326', text: '#e3f5ea' },
+  { id: 'wine', c: '#3a1520', text: '#ffe6ec' }, { id: 'cocoa', c: '#3b2a20', text: '#f7eadf' }, { id: 'slate', c: '#2a3440', text: '#e8eef5' },
+  { id: 'purple', c: '#2b1d47', text: '#efe8ff' }, { id: 'black', c: '#0b0d0c', text: '#f0f0f0' },
 ];
+
+function hexToRgb(h) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(h || '');
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function mix(a, b, t) {
+  const x = hexToRgb(a), y = hexToRgb(b);
+  return '#' + x.map((v, i) => Math.round(v * (1 - t) + y[i] * t).toString(16).padStart(2, '0')).join('');
+}
+const isDarkHex = (h) => {
+  const c = hexToRgb(h);
+  return c ? (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / 255 < 0.5 : false;
+};
+
+// page background + text colour for a note's page colour (preset id or custom #hex)
+export function pageStyle(pageColor, dark) {
+  if (!pageColor || pageColor === 'default') return null;
+  if (pageColor.startsWith('#')) return { bg: pageColor, text: isDarkHex(pageColor) ? '#eef3f0' : '#14201b', darkBg: isDarkHex(pageColor) };
+  const p = PAGE_COLORS.find((x) => x.id === pageColor);
+  if (!p || !p.c) return null;
+  if (p.text) return { bg: p.c, text: p.text, darkBg: true };
+  return dark ? { bg: mix(p.c, '#0f1714', 0.78), text: null, darkBg: true } : { bg: p.c, text: '#14201b', darkBg: false };
+}
+export function printBg(pageColor) {
+  const st = pageStyle(pageColor, false);
+  return st ? st.bg : '#ffffff';
+}
+export const HIGHLIGHTS = ['#fff176', '#ffcc80', '#a5d6a7', '#80deea', '#90caf9', '#ce93d8', '#f48fb1', '#ef9a9a'];
 
 export const TEXT_COLORS = [null, '#e0473e', '#ef7a2d', '#c99400', '#17845a', '#1f9d8f', '#2578e2', '#7c5cf0', '#d94a8c', '#6a7a72'];
 export const FONT_SIZES = [14, 16, 18, 22, 26, 32];
@@ -58,6 +89,7 @@ export function seedFolders(lang) {
     mk(3, ar ? 'أدعية وأذكار' : 'Duas & adhkar', 'notes', 'moon', '#7c5cf0'),
     mk(4, ar ? 'كلمات مرور احتياطية' : 'Backup passwords', 'accounts', 'key', '#ef7a2d'),
     mk(5, ar ? 'مشاريعي' : 'My projects', 'notes', 'briefcase', '#1f9d8f'),
+    mk(6, ar ? 'ملفات ودروس' : 'Files & lessons', 'files', 'book', '#e0473e'),
   ];
 }
 

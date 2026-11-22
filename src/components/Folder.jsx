@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Plus, Lock, Pin, Star, MoreVertical, Mail, KeyRound, Phone, Copy, Search, X, ArrowUpDown, Check } from 'lucide-react';
+import { useRef } from 'react';
+import { ArrowRight, Plus, Lock, Pin, Star, MoreVertical, Mail, KeyRound, Phone, Copy, Search, X, ArrowUpDown, Check, Bell, FileText } from 'lucide-react';
+import { fmtSize } from './Actions';
+import { toast } from './ui';
 import { useT, useSettings, setSettings } from '../settings';
 import { useNav } from '../App';
 import * as V from '../vault';
-import { platformColor, htmlToText, fmtFull, FOLDER_ICONS, PAGE_COLORS, sortList } from '../constants';
+import { platformColor, htmlToText, fmtFull, FOLDER_ICONS, pageStyle, sortList } from '../constants';
 import { LockGate, copyText, Sheet } from './ui';
 import { useFolderMenu } from './Home';
 import { isDark } from '../settings';
@@ -21,6 +24,7 @@ export function newItemFor(folder) {
   const base = { id: V.uid(), folderId: folder.id, createdAt: Date.now(), pinned: false, favorite: false, archived: false };
   if (folder.kind === 'accounts') return { ...base, type: 'account', title: '', email: '', username: '', password: '', url: '', notes: '', fresh: true };
   if (folder.kind === 'contacts') return { ...base, type: 'contact', title: '', phones: [{ number: '' }], notes: '', fresh: true };
+  if (folder.kind === 'files') return { ...base, type: 'file', title: '', notes: '', attachments: [] };
   return { ...base, type: 'note', title: '', html: '', pageColor: 'default', lines: false, fontSize: 17, attachments: [], fresh: true };
 }
 
@@ -47,6 +51,7 @@ export function ItemRow({ it, showFolder }) {
       {it.pinned && <Pin size={14} />}
       {it.favorite && <Star size={14} fill="currentColor" style={{ color: 'var(--gold)' }} />}
       {it.lock && <Lock size={14} />}
+      {it.reminder?.at && <Bell size={14} style={{ color: 'var(--primary)' }} />}
     </span>
   );
   const folderTag = folder && (
@@ -95,20 +100,39 @@ export function ItemRow({ it, showFolder }) {
       </div>
     );
   }
-  const pc = PAGE_COLORS.find((p) => p.id === it.pageColor);
-  const stripe = pc && pc.id !== 'default' ? (isDark(s) ? pc.dark : pc.light) : null;
+  if (it.type === 'file') {
+    const a = it.attachments?.[0];
+    return (
+      <div className="item" role="button" tabIndex={0} onClick={open} style={{ cursor: 'pointer' }}>
+        <div className="badge" style={{ '--bc': '#e0473e' }}><FileText size={22} /></div>
+        <div className="grow">
+          <div className="t ellipsis auto-dir">{it.title || a?.name || t.untitled}</div>
+          <div className="s"><span className="ltr">{a ? fmtSize(a.size) : ''}</span> • 🕒 {fmtFull(it.createdAt, s.lang)}</div>
+          {folderTag}
+        </div>
+        {icons}
+      </div>
+    );
+  }
+  const ps = pageStyle(it.pageColor, isDark(s));
   const text = locked ? '' : htmlToText(it.html).slice(0, 220);
+  const thumbs = (it.attachments || []).filter((a) => a.w != null || (a.type || '').startsWith('image/'));
+  const files = (it.attachments || []).length - thumbs.length;
   return (
-    <div className="item note-card" role="button" tabIndex={0} onClick={open} style={{ cursor: 'pointer' }}>
-      {stripe && <span className="stripe" style={{ background: stripe, filter: 'saturate(3) brightness(.9)' }} />}
+    <div
+      className={'item note-card' + (ps ? ' tinted' + (ps.darkBg ? ' on-dark' : '') : '')}
+      role="button"
+      tabIndex={0}
+      onClick={open}
+      style={{ cursor: 'pointer', ...(ps ? { background: ps.bg, color: ps.text || undefined, borderColor: 'transparent' } : null) }}
+    >
       <div className="row">
         <div className="t ellipsis grow auto-dir">{it.title || (text ? text.slice(0, 40) : t.untitled)}</div>
         {icons}
       </div>
       {locked ? <div className="snippet">🔒 {t.locked}</div> : text && <div className="snippet auto-dir">{text}</div>}
-      {!locked && it.attachments?.length > 0 && (
-        <div className="thumbs">{it.attachments.slice(0, 4).map((a) => <Thumb key={a.id} id={a.id} />)}</div>
-      )}
+      {!locked && thumbs.length > 0 && <div className="thumbs">{thumbs.slice(0, 4).map((a) => <Thumb key={a.id} id={a.id} />)}</div>}
+      {!locked && files > 0 && <div className="snippet">📎 {files} PDF</div>}
       <div className="foot">{folderTag}<span>🕒 {fmtFull(it.createdAt, s.lang)}</span>{it.updatedAt - (it.createdAt || 0) > 60000 && <span>✎ {fmtFull(it.updatedAt, s.lang)}</span>}</div>
     </div>
   );
@@ -154,12 +178,26 @@ export default function FolderView({ id }) {
     list = list.filter((i) => [i.title, i.email, i.username, htmlToText(i.html), i.notes, ...(i.phones || []).map((p) => p.number)].join(' ').toLowerCase().includes(n));
   }
   list = sortList(list, st.sortBy);
+  const pickRef = useRef(null);
+  const onPick = async (e) => {
+    const files = [...(e.target.files || [])];
+    e.target.value = '';
+    for (const file of files) {
+      try {
+        const a = await V.addFile(file);
+        V.saveItem({ ...newItemFor(f), title: file.name.replace(/\.pdf$/i, ''), attachments: [a] });
+      } catch (err) {
+        toast(err.message === 'TOO_BIG' ? t.fileTooBig : '⚠️ ' + err.message);
+      }
+    }
+  };
   const add = () => {
+    if (f.kind === 'files') return pickRef.current.click();
     const it = newItemFor(f);
     V.saveItem(it);
     nav.go({ name: 'item', id: it.id });
   };
-  const addLabel = f.kind === 'accounts' ? t.newAccount : f.kind === 'contacts' ? t.newContact : t.newNote;
+  const addLabel = f.kind === 'accounts' ? t.newAccount : f.kind === 'contacts' ? t.newContact : f.kind === 'files' ? t.newFile : t.newNote;
   return (
     <>
       <div className="topbar">
@@ -201,6 +239,9 @@ export default function FolderView({ id }) {
       )}
       {!locked && (
         <button className="fab" onClick={add}><Plus size={24} /><span>{addLabel}</span></button>
+      )}
+      {!locked && f.kind === 'files' && (
+        <input ref={pickRef} type="file" accept="application/pdf,.pdf" multiple hidden onChange={onPick} />
       )}
       {menuEl}
       {sorting && <SortSheet onClose={() => setSorting(false)} />}

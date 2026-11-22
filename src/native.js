@@ -8,6 +8,16 @@ const E = () => window.mhm;
 // ---------------- HTTP (text bodies only) ----------------
 export async function http(url, { method = 'GET', headers = {}, body } = {}) {
   if (platform === 'electron') return E().http({ url, method, headers, body });
+  if (platform === 'android') {
+    // native HTTP: no CORS limits, and form bodies are encoded by Android itself
+    const { CapacitorHttp } = await import('@capacitor/core');
+    const ct = (Object.entries(headers).find(([k]) => k.toLowerCase() === 'content-type') || [])[1] || '';
+    let data = body;
+    if (typeof body === 'string' && ct.includes('x-www-form-urlencoded')) data = Object.fromEntries(new URLSearchParams(body));
+    else if (typeof body === 'string' && ct.includes('application/json')) data = JSON.parse(body);
+    const r = await CapacitorHttp.request({ url, method, headers, data, responseType: 'text', connectTimeout: 30000, readTimeout: 120000 });
+    return { status: r.status, text: typeof r.data === 'string' ? r.data : JSON.stringify(r.data) };
+  }
   const r = await fetch(url, { method, headers, body });
   return { status: r.status, text: await r.text() };
 }
@@ -144,6 +154,17 @@ export async function bioGet(t) {
     return await E().secureGet('bio-key');
   }
   throw new Error('UNSUPPORTED');
+}
+
+// Just confirm the user's fingerprint (used for locked folders / pages)
+export async function bioVerify(t) {
+  if (platform === 'android') {
+    const { NativeBiometric } = await import('@capgo/capacitor-native-biometric');
+    await NativeBiometric.verifyIdentity({ reason: t.bioReason, title: t.appName, negativeButtonText: t.cancel });
+    return true;
+  }
+  if (platform === 'electron') return !!(await E().bioVerify(t.bioReason));
+  return false;
 }
 
 export async function bioDisable() {

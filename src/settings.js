@@ -2,7 +2,7 @@ import { useSyncExternalStore, createContext, useContext } from 'react';
 import { strings } from './i18n';
 
 const KEY = 'mhm-note-settings';
-const defaults = { lang: 'ar', theme: 'system', accent: 'green', autoLock: 5 };
+const defaults = { lang: 'ar', theme: 'system', accent: 'green', autoLock: 5, scale: 1, grid: 'md', sortBy: 'updated' };
 let settings = { ...defaults };
 try {
   settings = { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || '{}') };
@@ -35,6 +35,7 @@ export function applyDocument() {
   el.dir = settings.lang === 'ar' ? 'rtl' : 'ltr';
   el.dataset.theme = isDark() ? 'dark' : 'light';
   el.dataset.accent = settings.accent;
+  el.style.setProperty('--z', String(settings.scale || 1));
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = isDark() ? '#0f1714' : settings.accent === 'yellow' ? '#f6c437' : '#17845a';
 }

@@ -262,6 +262,21 @@ export async function addImage(file) {
   await db.putBlob({ id, iv, ct });
   return { id, name: file.name || 'image.jpg', w, h, size: bytes.length, type: 'image/jpeg' };
 }
+export const MAX_FILE = 30 * 1024 * 1024;
+export async function addFile(file) {
+  if (file.size > MAX_FILE) throw new Error('TOO_BIG');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const id = uid();
+  const { iv, ct } = await C.encryptBytes(DEK, bytes);
+  await db.putBlob({ id, iv, ct });
+  return { id, name: file.name || 'file.pdf', size: bytes.length, type: file.type || 'application/pdf' };
+}
+export async function blobBytes(id) {
+  const b = await db.getBlob(id);
+  if (!b) return null;
+  return C.decryptBytes(DEK, b.iv, b.ct);
+}
+
 export async function imageURL(id) {
   if (urlCache.has(id)) return urlCache.get(id);
   const b = await db.getBlob(id);

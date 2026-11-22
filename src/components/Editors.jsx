@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { Copy, Eye, EyeOff, ExternalLink, Phone, Plus, X } from 'lucide-react';
+import { Copy, Eye, EyeOff, ExternalLink, Phone, Plus, X, FileText, Share2, Download, Trash2 } from 'lucide-react';
+import * as V from '../vault';
+import * as D from '../device';
+import { fmtSize } from './Actions';
 import { useT, useSettings } from '../settings';
 import { PLATFORMS, platformColor, COLORS, fmtFull } from '../constants';
-import { copyText } from './ui';
+import { copyText, Confirm, toast } from './ui';
 
 function Dates({ it }) {
   const t = useT();
@@ -144,6 +147,96 @@ export function ContactEditor({ it, update }) {
           <button className="chip-btn" style={{ marginBottom: 16 }} onClick={() => update({ phones: [...phones, { number: '' }] })}>
             <Plus size={16} /> {t.addPhone}
           </button>
+        </div>
+        <div className="field" style={{ marginTop: 16 }}>
+          <label>{t.notes}</label>
+          <div className="input-wrap">
+            <textarea className="auto-dir" value={it.notes || ''} onChange={(e) => update({ notes: e.target.value })} rows={4} />
+          </div>
+        </div>
+        <Dates it={it} />
+      </div>
+    </div>
+  );
+}
+
+// ---------- encrypted file attachments (PDF) ----------
+async function withBytes(a, fn, t) {
+  try {
+    const bytes = await V.blobBytes(a.id);
+    if (!bytes) throw new Error('missing');
+    await fn(bytes);
+  } catch (e) {
+    if (!/cancel/i.test(String(e?.message))) toast('⚠️ ' + (e?.message || e));
+  }
+}
+export const fileOpen = (a, t) => withBytes(a, (b) => D.openFile(b, a.name, a.type), t);
+export const fileShare = (a, t) => withBytes(a, (b) => D.shareFile(b, a.name, a.type, a.name), t);
+export const fileSave = (a, t) =>
+  withBytes(a, async (b) => {
+    const r = await D.saveFile(b, a.name, a.type);
+    if (r) toast(t.savedTo + ' ' + (r.where || ''));
+  }, t);
+
+export function FileChips({ it, update }) {
+  const t = useT();
+  const [del, setDel] = useState(null);
+  const files = (it.attachments || []).filter((a) => a.type && !a.type.startsWith('image/'));
+  if (!files.length) return null;
+  return (
+    <>
+      <div className="hint" style={{ marginTop: 22, fontWeight: 700 }}>🔒 {t.attachments}</div>
+      <div className="list" style={{ marginTop: 8 }}>
+        {files.map((a) => (
+          <div key={a.id} className="item" style={{ padding: '10px 12px' }}>
+            <button className="badge" style={{ '--bc': '#e0473e', width: 40, height: 40 }} onClick={() => fileOpen(a, t)}><FileText size={20} /></button>
+            <button className="grow" style={{ textAlign: 'start' }} onClick={() => fileOpen(a, t)}>
+              <div className="t ellipsis auto-dir" style={{ fontSize: 14 }}>{a.name}</div>
+              <div className="s">{fmtSize(a.size)}</div>
+            </button>
+            <button className="icon-btn sm" title={t.share} onClick={() => fileShare(a, t)}><Share2 size={17} /></button>
+            <button className="icon-btn sm" title={t.saveFileTo} onClick={() => fileSave(a, t)}><Download size={17} /></button>
+            <button className="icon-btn sm" title={t.delete} onClick={() => setDel(a)}><Trash2 size={17} /></button>
+          </div>
+        ))}
+      </div>
+      {del && (
+        <Confirm
+          text={t.delete + ': ' + del.name + '؟'}
+          onClose={() => setDel(null)}
+          onYes={async () => {
+            await V.removeImage(del.id);
+            update({ attachments: it.attachments.filter((x) => x.id !== del.id) });
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+export function FileItemView({ it, update }) {
+  const t = useT();
+  const a = it.attachments?.[0];
+  return (
+    <div className="scroll">
+      <div className="container" style={{ maxWidth: 640 }}>
+        <div className="card" style={{ padding: 22, textAlign: 'center', marginTop: 10 }}>
+          <button className="badge" style={{ '--bc': '#e0473e', width: 84, height: 84, borderRadius: 26, margin: '0 auto 12px' }} onClick={() => a && fileOpen(a, t)}>
+            <FileText size={42} />
+          </button>
+          <input
+            className="title-input"
+            style={{ textAlign: 'center', fontSize: 19 }}
+            value={it.title}
+            placeholder={t.title}
+            onChange={(e) => update({ title: e.target.value })}
+          />
+          {a && <div className="hint ltr">{a.name} • {fmtSize(a.size)}</div>}
+          <div className="row" style={{ marginTop: 18 }}>
+            <button className="btn grow" onClick={() => a && fileOpen(a, t)}><FileText size={18} />{t.openFile}</button>
+            <button className="btn ghost" title={t.share} onClick={() => a && fileShare(a, t)}><Share2 size={18} /></button>
+            <button className="btn ghost" title={t.saveFileTo} onClick={() => a && fileSave(a, t)}><Download size={18} /></button>
+          </div>
         </div>
         <div className="field" style={{ marginTop: 16 }}>
           <label>{t.notes}</label>

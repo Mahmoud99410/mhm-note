@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, createContext, useContext, useCallback } from 'react';
-import { NotebookPen, Home as HomeIco, Star, Archive as ArchiveIco, Trash2, Settings as SetIco, Lock } from 'lucide-react';
+import { NotebookPen, Home as HomeIco, Star, Archive as ArchiveIco, Trash2, Settings as SetIco, Lock, Bell } from 'lucide-react';
 import { LangCtx, useSettings, getSettings } from './settings';
 import { strings } from './i18n';
 import * as V from './vault';
@@ -8,7 +8,8 @@ import { ToastHost } from './components/ui';
 import Home from './components/Home';
 import FolderView from './components/Folder';
 import ItemView from './components/ItemView';
-import { SearchView, TrashView, ArchiveView, FavoritesView } from './components/Lists';
+import { SearchView, TrashView, ArchiveView, FavoritesView, RemindersView } from './components/Lists';
+import { scheduleReminders } from './device';
 import SettingsView from './components/SettingsView';
 import { FOLDER_ICONS } from './constants';
 import { syncNow, syncSoon, resetSyncStatus } from './sync';
@@ -92,6 +93,7 @@ export default function App() {
 function Shell({ onLock }) {
   const [stack, setStack] = useState([{ name: 'home' }]);
   const vstate = V.useVault();
+  const t = useContext(LangCtx);
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
@@ -100,6 +102,23 @@ function Shell({ onLock }) {
     }
     syncSoon();
   }, [vstate]);
+  // (re)schedule reminders whenever reminder data changes
+  const remKey = vstate.items.filter((i) => i.reminder?.at && !i.deletedAt).map((i) => i.id + i.reminder.at + i.reminder.repeat + (i.title || '') + (i.reminder.note || '')).join('|');
+  useEffect(() => {
+    const id = setTimeout(
+      () => scheduleReminders(V.getState().items, t, (itemId) => itemId && setStack([{ name: 'home' }, { name: 'item', id: itemId }])),
+      800
+    );
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remKey, t]);
+  useEffect(() => {
+    const pendingOpen = sessionStorage.getItem('mhm-open-item');
+    if (pendingOpen) {
+      sessionStorage.removeItem('mhm-open-item');
+      setStack([{ name: 'home' }, { name: 'item', id: pendingOpen }]);
+    }
+  }, []);
   const stackRef = useRef(stack);
   stackRef.current = stack;
   const nav = {
@@ -138,6 +157,7 @@ function Shell({ onLock }) {
     case 'archive': view = <ArchiveView />; break;
     case 'favorites': view = <FavoritesView />; break;
     case 'settings': view = <SettingsView />; break;
+    case 'reminders': view = <RemindersView />; break;
     default: view = <Home />;
   }
   return (
@@ -168,6 +188,7 @@ function Sidebar() {
       <nav className="side-nav">
         {link('home', HomeIco, t.hello)}
         {link('favorites', Star, t.favorites)}
+        {link('reminders', Bell, t.reminders)}
         <div className="side-label">{t.folders}</div>
         {live.map((f) => {
           const Icon = FOLDER_ICONS[f.icon] || FOLDER_ICONS.folder;

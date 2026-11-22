@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Undo2, Redo2, Bold, Palette, Type, List, ListChecks, ImagePlus, PaintBucket, Rows3, X, Trash2 } from 'lucide-react';
+import { Undo2, Redo2, Bold, Palette, Type, List, ListChecks, ImagePlus, PaintBucket, Rows3, X, Trash2, Highlighter, FilePlus2, Pipette } from 'lucide-react';
 import { useT, useSettings, isDark } from '../settings';
 import * as V from '../vault';
-import { PAGE_COLORS, TEXT_COLORS, FONT_SIZES, fmtFull } from '../constants';
+import { PAGE_COLORS, TEXT_COLORS, FONT_SIZES, HIGHLIGHTS, fmtFull, pageStyle } from '../constants';
+import { FileChips } from './Editors';
+import { toast } from './ui';
 import { Confirm } from './ui';
+const isImage = (a) => a.w != null || (a.type || '').startsWith('image/');
 
 const SENTINEL_COLOR = 'rgb(1, 2, 3)';
 
@@ -54,17 +57,18 @@ function Gallery({ it, update }) {
     let live = true;
     (async () => {
       const out = {};
-      for (const a of it.attachments || []) out[a.id] = await V.imageURL(a.id);
+      for (const a of (it.attachments || []).filter(isImage)) out[a.id] = await V.imageURL(a.id);
       if (live) setUrls(out);
     })();
     return () => (live = false);
   }, [it.attachments]);
-  if (!it.attachments?.length) return null;
+  const imgs = (it.attachments || []).filter(isImage);
+  if (!imgs.length) return null;
   return (
     <>
       <div className="hint" style={{ marginTop: 26, fontWeight: 700 }}>🔒 {t.images}</div>
       <div className="gallery">
-        {it.attachments.map((a) => (
+        {imgs.map((a) => (
           <button key={a.id} onClick={() => setView(a)}>{urls[a.id] && <img src={urls[a.id]} alt="" />}</button>
         ))}
       </div>
@@ -99,6 +103,8 @@ export default function NoteEditor({ it, update }) {
   const ref = useRef(null);
   const titleRef = useRef(null);
   const fileRef = useRef(null);
+  const pdfRef = useRef(null);
+  const customRef = useRef(null);
   const saved = useRef(null);
   const hist = useRef({ stack: [], idx: -1, timer: null });
   const syncTimer = useRef(null);
@@ -205,9 +211,9 @@ export default function NoteEditor({ it, update }) {
   }, []);
 
   // page colour applies to the whole screen (top bar too)
-  const pc = PAGE_COLORS.find((p) => p.id === it.pageColor) || PAGE_COLORS[0];
-  const pageBg = pc.id === 'default' ? null : dark ? pc.dark : pc.light;
-  const pageText = pc.text || null;
+  const ps = pageStyle(it.pageColor, dark);
+  const pageBg = ps?.bg || null;
+  const pageText = ps?.text || null;
   useEffect(() => {
     const main = document.querySelector('.main');
     if (!main) return;
@@ -356,6 +362,24 @@ export default function NoteEditor({ it, update }) {
       after();
     }
   };
+  const setHighlight = (c) => {
+    setPop(null);
+    if (!hasSelection()) return;
+    exec('hiliteColor', c || 'transparent', true);
+  };
+  const onPdf = async (e) => {
+    const files = [...(e.target.files || [])];
+    e.target.value = '';
+    const added = [];
+    for (const f of files) {
+      try {
+        added.push(await V.addFile(f));
+      } catch (err) {
+        toast(err.message === 'TOO_BIG' ? t.fileTooBig : '⚠️ ' + err.message);
+      }
+    }
+    if (added.length) update({ attachments: [...(it.attachments || []), ...added] });
+  };
   const onFiles = async (e) => {
     const files = [...(e.target.files || [])];
     e.target.value = '';
@@ -378,7 +402,7 @@ export default function NoteEditor({ it, update }) {
   );
   const h = hist.current;
   const fs = it.fontSize || 17;
-  const lineColor = pageText ? 'rgba(255,255,255,.08)' : dark ? 'rgba(255,255,255,.07)' : 'rgba(23,132,90,.13)';
+  const lineColor = ps?.darkBg ? 'rgba(255,255,255,.09)' : dark ? 'rgba(255,255,255,.07)' : 'rgba(23,132,90,.13)';
 
   return (
     <div className="editor-wrap" style={{ position: 'relative', flex: 1, minHeight: 0 }}>
@@ -410,6 +434,7 @@ export default function NoteEditor({ it, update }) {
             onBlur={() => { if (hist.current.timer) commit(); sync(true); }}
           />
           <Gallery it={it} update={update} />
+          <FileChips it={it} update={update} />
         </div>
       </div>
 
@@ -435,6 +460,15 @@ export default function NoteEditor({ it, update }) {
           </div>
         </div>
       )}
+      {pop === 'hl' && (
+        <div className="popover" onMouseDown={(e) => e.preventDefault()}>
+          <h4>{t.highlight}</h4>
+          <div className="swatches">
+            <button className="swatch" title={t.noHighlight} style={{ background: 'var(--surface)', display: 'grid', placeItems: 'center' }} onClick={() => setHighlight(null)}><X size={16} /></button>
+            {HIGHLIGHTS.map((c) => <button key={c} className="swatch" style={{ background: c }} onClick={() => setHighlight(c)} />)}
+          </div>
+        </div>
+      )}
       {pop === 'page' && (
         <div className="popover" onMouseDown={(e) => e.preventDefault()}>
           <h4>{t.pageColor}</h4>
@@ -442,11 +476,20 @@ export default function NoteEditor({ it, update }) {
             {PAGE_COLORS.map((p) => (
               <button
                 key={p.id}
-                className={'swatch' + (it.pageColor === p.id ? ' on' : '')}
-                style={{ background: p.id === 'default' ? 'var(--surface)' : dark ? p.dark : p.light }}
+                className={'swatch' + ((it.pageColor || 'default') === p.id ? ' on' : '')}
+                style={{ background: p.id === 'default' ? 'var(--surface)' : pageStyle(p.id, dark).bg }}
                 onClick={() => update({ pageColor: p.id })}
               />
             ))}
+            <button
+              className={'swatch custom' + (it.pageColor?.startsWith('#') ? ' on' : '')}
+              title={t.customColor}
+              style={it.pageColor?.startsWith('#') ? { background: it.pageColor } : null}
+              onClick={() => customRef.current.click()}
+            >
+              <Pipette size={16} />
+            </button>
+            <input ref={customRef} type="color" hidden value={it.pageColor?.startsWith('#') ? it.pageColor : '#ffe9a8'} onChange={(e) => update({ pageColor: e.target.value })} />
           </div>
           <button className="menu-item" style={{ marginTop: 10 }} onClick={() => update({ lines: !it.lines })}>
             <Rows3 size={20} /> <span className="grow">{t.pageLines}</span>
@@ -461,14 +504,17 @@ export default function NoteEditor({ it, update }) {
         <span className="sep" />
         {tb(Bold, t.bold, () => exec('bold'))}
         {tb(Palette, t.textColor, () => setPop(pop === 'color' ? null : 'color'), pop === 'color')}
+        {tb(Highlighter, t.highlight, () => setPop(pop === 'hl' ? null : 'hl'), pop === 'hl')}
         {tb(Type, t.fontSize, () => setPop(pop === 'size' ? null : 'size'), pop === 'size')}
         {tb(List, t.list, () => exec('insertUnorderedList'))}
         {tb(ListChecks, t.checklist, toggleTodo)}
         <span className="sep" />
         {tb(ImagePlus, t.addImage, () => fileRef.current.click())}
+        {tb(FilePlus2, t.attachPdf, () => pdfRef.current.click())}
         {tb(PaintBucket, t.pageColor, () => setPop(pop === 'page' ? null : 'page'), pop === 'page')}
       </div>
       <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onFiles} />
+      <input ref={pdfRef} type="file" accept="application/pdf,.pdf" multiple hidden onChange={onPdf} />
     </div>
   );
 }

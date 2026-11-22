@@ -7,7 +7,7 @@ import { BackBtn } from './Folder';
 import { Sheet, PasswordInput, copyText, toast } from './ui';
 import { SyncSection, BiometricRow } from './Cloud';
 
-export const APP_VERSION = '0.3.0';
+export const APP_VERSION = '0.4.0';
 
 function ChangePassword({ onClose }) {
   const t = useT();
@@ -103,6 +103,22 @@ export default function SettingsView() {
               <div className="seg" style={{ width: 260 }}>
                 {['light', 'dark', 'system'].map((k) => (
                   <button key={k} className={s.theme === k ? 'on' : ''} onClick={() => setSettings({ theme: k })}>{t[k]}</button>
+                ))}
+              </div>
+            </div>
+            <div className="setting" style={{ flexWrap: 'wrap' }}>
+              <span className="lbl">{t.uiFontSize}</span>
+              <div className="seg" style={{ width: 300 }}>
+                {[[0.9, 's'], [1, 'm'], [1.12, 'l'], [1.25, 'xl']].map(([v, k]) => (
+                  <button key={k} className={(s.scale || 1) === v ? 'on' : ''} onClick={() => setSettings({ scale: v })} style={{ fontSize: 11 + v * 3 }}>{t['font_' + k]}</button>
+                ))}
+              </div>
+            </div>
+            <div className="setting" style={{ flexWrap: 'wrap' }}>
+              <span className="lbl">{t.iconSize}</span>
+              <div className="seg" style={{ width: 240 }}>
+                {['sm', 'md', 'lg'].map((k) => (
+                  <button key={k} className={(s.grid || 'md') === k ? 'on' : ''} onClick={() => setSettings({ grid: k })}>{t[{ sm: 'small', md: 'medium', lg: 'large' }[k]]}</button>
                 ))}
               </div>
             </div>

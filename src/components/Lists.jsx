@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Search, X, Star, Archive, Trash2, RotateCcw, Folder as FolderIco } from 'lucide-react';
+import { Search, X, Star, Archive, Trash2, RotateCcw, Folder as FolderIco, Bell } from 'lucide-react';
+import { useSettings } from '../settings';
+import { nextFire } from '../device';
+import { reminderLabel } from './Actions';
 import { useT } from '../settings';
 import { useNav } from '../App';
 import * as V from '../vault';
@@ -192,6 +195,36 @@ export function TrashView() {
           onYes={() => (confirm.all ? V.emptyTrash() : V.deleteForever(confirm.id)).then(() => toast(t.done))}
         />
       )}
+    </Page>
+  );
+}
+
+export function RemindersView() {
+  const t = useT();
+  const s = useSettings();
+  const { folders, items } = V.useVault();
+  const dead = new Set(folders.filter((f) => f.deletedAt).map((f) => f.id));
+  const list = items
+    .filter((i) => i.reminder?.at && !i.deletedAt && !dead.has(i.folderId))
+    .map((i) => ({ i, next: nextFire(i.reminder) }))
+    .sort((a, b) => (a.next ?? Infinity) - (b.next ?? Infinity));
+  return (
+    <Page title={t.reminders} icon={Bell}>
+      {list.length === 0 ? (
+        <Empty icon={Bell} text={t.noReminders} />
+      ) : (
+        <div className="list">
+          {list.map(({ i, next }) => (
+            <div key={i.id} style={{ opacity: next ? 1 : 0.55 }}>
+              <div className="hint" style={{ margin: '0 6px 4px', fontWeight: 700, color: next ? 'var(--primary)' : 'var(--muted)' }}>
+                ⏰ {reminderLabel(i.reminder, t, s.lang)}
+              </div>
+              <ItemRow it={i} showFolder />
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="hint hide-mobile" style={{ textAlign: 'center', marginTop: 20 }}>{t.trayHint}</p>
     </Page>
   );
 }

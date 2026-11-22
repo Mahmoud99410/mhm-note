@@ -1,4 +1,5 @@
-const { app, BrowserWindow, Menu, shell, ipcMain, safeStorage, net } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, safeStorage, net, dialog, Tray, nativeImage } = require('electron');
+const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -6,7 +7,10 @@ const crypto = require('crypto');
 const { execFile } = require('child_process');
 
 if (!app.requestSingleInstanceLock()) app.quit();
+app.setAppUserModelId('com.mhm.note');
 let win;
+let tray;
+let quitting = false;
 
 function create() {
   win = new BrowserWindow({
@@ -26,15 +30,35 @@ function create() {
   });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  // closing the window keeps MHM NOTE in the tray so reminders still fire
+  win.on('close', (e) => {
+    if (!quitting) {
+      e.preventDefault();
+      win.hide();
+    }
+  });
+  const icon = nativeImage.createFromPath(path.join(__dirname, '..', 'build', 'icon.png')).resize({ width: 16, height: 16 });
+  tray = new Tray(icon);
+  tray.setToolTip('MHM NOTE');
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'فتح MHM NOTE', click: () => { win.show(); win.focus(); } },
+      { type: 'separator' },
+      { label: 'خروج', click: () => { quitting = true; app.quit(); } },
+    ])
+  );
+  tray.on('click', () => { win.show(); win.focus(); });
 }
 app.whenReady().then(create);
+app.on('before-quit', () => (quitting = true));
 app.on('second-instance', () => {
   if (win) {
+    win.show();
     if (win.isMinimized()) win.restore();
     win.focus();
   }
 });
-app.on('window-all-closed', () => app.quit());
+app.on('window-all-closed', () => {});
 
 // ---------- secure storage (Windows DPAPI via safeStorage) ----------
 const store = (k) => path.join(app.getPath('userData'), 'secure-' + k.replace(/[^a-z0-9-]/gi, '') + '.bin');
@@ -185,3 +209,34 @@ ipcMain.handle('bio-verify', async (_e, reason) => {
   if (win) win.focus();
   return r === 'Verified';
 });
+
+// ---------- files, PDF ----------
+ipcMain.handle('save-file', async (_e, { name, base64 }) => {
+  const r = await dialog.showSaveDialog(win, { defaultPath: path.join(app.getPath('documents'), name) });
+  if (r.canceled || !r.filePath) return null;
+  fs.writeFileSync(r.filePath, Buffer.from(base64, 'base64'));
+  shell.showItemInFolder(r.filePath);
+  return { path: r.filePath, where: r.filePath };
+});
+ipcMain.handle('open-temp', async (_e, { name, base64 }) => {
+  const dir = path.join(os.tmpdir(), 'mhm-note');
+  fs.mkdirSync(dir, { recursive: true });
+  const f = path.join(dir, name.replace(/[\\/:*?"<>|]+/g, ' '));
+  fs.writeFileSync(f, Buffer.from(base64, 'base64'));
+  await shell.openPath(f);
+  setTimeout(() => { try { fs.unlinkSync(f); } catch {} }, 10 * 60000);
+});
+ipcMain.handle('print-pdf', async (_e, html) => {
+  const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
+  try {
+    const f = path.join(os.tmpdir(), 'mhm-print-' + crypto.randomBytes(6).toString('hex') + '.html');
+    fs.writeFileSync(f, '<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4;margin:16mm} body{margin:0;font-family:"Segoe UI",Tahoma,Arial,sans-serif;color:#111} .pdf-page{page-break-after:always} .pdf-page:last-child{page-break-after:auto}</style></head><body>' + html + '</body></html>');
+    await w.loadFile(f);
+    const pdf = await w.webContents.printToPDF({ pageSize: 'A4', printBackground: true, margins: { marginType: 'default' } });
+    fs.unlinkSync(f);
+    return pdf.toString('base64');
+  } finally {
+    w.destroy();
+  }
+});
+ipcMain.handle('flash', () => { if (win && !win.isFocused()) win.flashFrame(true); });

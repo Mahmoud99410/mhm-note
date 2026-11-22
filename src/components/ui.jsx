@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { Check, Lock, Delete, Eye, EyeOff } from 'lucide-react';
+import { Check, Lock, Delete, Eye, EyeOff, Fingerprint } from 'lucide-react';
+import { bioEnabled, bioVerify, platform } from '../native';
 import { useT } from '../settings';
 import { hashSecret, verifySecret, markOpened } from '../vault';
 
@@ -167,6 +168,19 @@ export function LockGate({ target, onOpen, title }) {
       onOpen();
     } else setErr((e) => e + 1);
   };
+  const bio = platform !== 'web' && bioEnabled();
+  const tryBio = async () => {
+    try {
+      if (await bioVerify(t)) {
+        markOpened(target.id);
+        onOpen();
+      }
+    } catch {}
+  };
+  useEffect(() => {
+    if (bio) tryBio();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <div className="lock-screen">
       <div className="lock-ico"><Lock size={32} /></div>
@@ -181,7 +195,9 @@ export function LockGate({ target, onOpen, title }) {
           <button className="btn block" style={{ marginTop: 12 }} onClick={() => check(pw)}>{t.open}</button>
         </div>
       )}
-      <p className="hint" style={{ marginTop: 22 }}>{t.biometricSoon}</p>
+      {bio && (
+        <button className="bio-btn" title={t.bioOpen} onClick={tryBio}><Fingerprint size={34} /></button>
+      )}
     </div>
   );
 }

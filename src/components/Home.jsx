@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { NotebookPen, Search, Lock, Settings, Star, Archive, Trash2, Plus, Pin, MoreVertical, Pencil, Unlock, ArchiveRestore, PinOff } from 'lucide-react';
+import { NotebookPen, Search, Lock, Settings, Star, Archive, Trash2, Plus, Pin, MoreVertical, Pencil, Unlock, ArchiveRestore, PinOff, FileDown, Share2, Bell, LayoutGrid, Grid3x3, Rows3 } from 'lucide-react';
+import { useSettings, setSettings } from '../settings';
+import { useExporter } from './Actions';
+import { sortList } from '../constants';
 import { useT } from '../settings';
 import { useNav } from '../App';
 import * as V from '../vault';
@@ -33,8 +36,8 @@ export function FolderSheet({ folder, onClose }) {
       </div>
       <div className="field">
         <label>{t.folderType}</label>
-        <div className="seg">
-          {['notes', 'accounts', 'contacts'].map((k) => (
+        <div className="seg grid2">
+          {['notes', 'accounts', 'contacts', 'files'].map((k) => (
             <button key={k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)} style={{ fontSize: 12.5 }}>{t['kind_' + k]}</button>
           ))}
         </div>
@@ -63,7 +66,10 @@ export function useFolderMenu() {
   const [menu, setMenu] = useState(null);
   const [edit, setEdit] = useState(null);
   const [locking, setLocking] = useState(null);
+  const ex = useExporter();
   const open = (f) => setMenu(f);
+  const folderItems = (f) => sortList(V.getState().items.filter((i) => i.folderId === f.id && !i.deletedAt && !i.archived), 'created');
+  const canExport = (f) => !f.lock || V.isOpened(f.id);
   const el = (
     <>
       {menu && (
@@ -72,6 +78,8 @@ export function useFolderMenu() {
           onClose={() => setMenu(null)}
           items={[
             { icon: Pencil, label: t.rename, onClick: () => setEdit(menu) },
+            canExport(menu) && { icon: FileDown, label: t.exportFolderPdf, onClick: () => ex.exportPdf(folderItems(menu), menu.name, 'save') },
+            canExport(menu) && { icon: Share2, label: t.shareFolder, onClick: () => ex.exportPdf(folderItems(menu), menu.name, 'share') },
             { icon: menu.pinned ? PinOff : Pin, label: menu.pinned ? t.unpin : t.pin, onClick: () => V.saveFolder({ ...menu, pinned: !menu.pinned }) },
             menu.lock
               ? { icon: Unlock, label: t.removeLock, onClick: () => V.saveFolder({ ...menu, lock: null }) }
@@ -82,6 +90,7 @@ export function useFolderMenu() {
         />
       )}
       {edit && <FolderSheet folder={edit} onClose={() => setEdit(null)} />}
+      {ex.el}
       {locking && <SetLockSheet onClose={() => setLocking(null)} onSet={(lock) => { V.saveFolder({ ...locking, lock }); V.markOpened(locking.id); }} />}
     </>
   );
@@ -101,6 +110,7 @@ export function FolderCard({ f, count, onMenu }) {
       onClick={() => nav.go({ name: 'folder', id: f.id })}
       onContextMenu={(e) => { e.preventDefault(); onMenu(f); }}
     >
+      <span className="big-ico"><Icon size={30} /></span>
       <div className="row" style={{ alignItems: 'flex-start' }}>
         <div className="folder-ico"><Icon size={22} /></div>
         <div className="grow" />
@@ -122,6 +132,8 @@ export function FolderCard({ f, count, onMenu }) {
 
 export default function Home() {
   const t = useT();
+  const st = useSettings();
+  const grid = st.grid || 'md';
   const nav = useNav();
   const { folders, items } = V.useVault();
   const [newFolder, setNewFolder] = useState(false);
@@ -155,6 +167,7 @@ export default function Home() {
         </div>
         <div className="quick-row hide-desktop">
           <button className="quick" onClick={() => nav.go({ name: 'favorites' })}><Star size={22} />{t.favorites}</button>
+          <button className="quick" onClick={() => nav.go({ name: 'reminders' })}><Bell size={22} />{t.reminders}</button>
           <button className="quick" onClick={() => nav.go({ name: 'archive' })}><Archive size={22} />{t.archive}</button>
           <button className="quick" onClick={() => nav.go({ name: 'trash' })}><Trash2 size={22} />{t.trash}</button>
         </div>
@@ -175,9 +188,18 @@ export default function Home() {
 
         <div className="section-title">
           <h3>{t.folders}</h3>
-          <button className="chip-btn" onClick={() => setNewFolder(true)}><Plus size={16} />{t.newFolder}</button>
+          <div className="row" style={{ gap: 6 }}>
+            <button
+              className="icon-btn sm"
+              title={t.iconSize}
+              onClick={() => setSettings({ grid: grid === 'sm' ? 'md' : grid === 'md' ? 'lg' : 'sm' })}
+            >
+              {grid === 'sm' ? <Grid3x3 size={19} /> : grid === 'md' ? <LayoutGrid size={19} /> : <Rows3 size={19} />}
+            </button>
+            <button className="chip-btn" onClick={() => setNewFolder(true)}><Plus size={16} />{t.newFolder}</button>
+          </div>
         </div>
-        <div className="folder-grid">
+        <div className={'folder-grid ' + grid}>
           {live.map((f) => <FolderCard key={f.id} f={f} count={count(f.id)} onMenu={openMenu} />)}
         </div>
         <p className="hint" style={{ textAlign: 'center', marginTop: 26 }}>🔒 {t.encryptedNote}</p>
