@@ -115,10 +115,38 @@ export function syncNow(interactive = false) {
 }
 
 let debounce;
-export function syncSoon(ms = 6000) {
+export function syncSoon(ms = 2500) {
   clearTimeout(debounce);
   debounce = setTimeout(() => syncNow(), ms);
 }
 export function resetSyncStatus() {
   set({ running: false, gdrive: null, pcloud: null });
+}
+
+// ---------- manual backup file ----------
+export async function buildBackup() {
+  const snap = await V.syncSnapshot();
+  const blobs = {};
+  for (const id of await V.localBlobIds()) blobs[id] = await V.blobToText(id);
+  return { v: 1, app: 'MHM NOTE', kind: 'backup', savedAt: Date.now(), vault: snap.vault, records: snap.records, tombs: snap.tombs, blobs };
+}
+export function parseBackup(text) {
+  const o = JSON.parse(text);
+  if (!o?.vault?.wrapped || !Array.isArray(o.records)) throw new Error('BAD_BACKUP');
+  return o;
+}
+// in-memory adapter: lets the normal merge logic import a backup file
+export function backupAdapter(obj) {
+  return {
+    id: 'file',
+    readVault: async () => ({ text: JSON.stringify(obj), ref: null }),
+    writeVault: async () => {},
+    listBlobs: async () => new Map(Object.keys(obj.blobs || {}).map((k) => [k, k])),
+    getBlob: async (ref) => obj.blobs[ref],
+    putBlob: async () => {},
+    deleteBlob: async () => {},
+  };
+}
+export async function importBlobs(obj) {
+  for (const [id, text] of Object.entries(obj.blobs || {})) if (text) await V.blobFromText(id, text);
 }

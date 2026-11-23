@@ -14,7 +14,7 @@ env:
   VITE_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
   VITE_PCLOUD_CLIENT_ID: ${{ secrets.PCLOUD_CLIENT_ID }}
   VITE_PCLOUD_CLIENT_SECRET: ${{ secrets.PCLOUD_CLIENT_SECRET }}
-  VERSION_NAME: 0.5.${{ github.run_number }}
+  VERSION_NAME: 0.6.${{ github.run_number }}
   VERSION_CODE: ${{ github.run_number }}
 
 jobs:

@@ -90,6 +90,7 @@ export function seedFolders(lang) {
     mk(4, ar ? 'كلمات مرور احتياطية' : 'Backup passwords', 'accounts', 'key', '#ef7a2d'),
     mk(5, ar ? 'مشاريعي' : 'My projects', 'notes', 'briefcase', '#1f9d8f'),
     mk(6, ar ? 'ملفات ودروس' : 'Files & lessons', 'files', 'book', '#e0473e'),
+    { ...mk(7, ar ? 'مواعيد المباريات' : 'Match times', 'events', 'trophy', '#e5a800'), id: 'events-default' },
   ];
 }
 

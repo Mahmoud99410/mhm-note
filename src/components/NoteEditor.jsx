@@ -514,7 +514,7 @@ export default function NoteEditor({ it, update }) {
         {tb(PaintBucket, t.pageColor, () => setPop(pop === 'page' ? null : 'page'), pop === 'page')}
       </div>
       <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onFiles} />
-      <input ref={pdfRef} type="file" accept="application/pdf,.pdf" multiple hidden onChange={onPdf} />
+      <input ref={pdfRef} type="file" accept="*/*" multiple hidden onChange={onPdf} />
     </div>
   );
 }

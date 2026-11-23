@@ -37,7 +37,7 @@ export function FolderSheet({ folder, onClose }) {
       <div className="field">
         <label>{t.folderType}</label>
         <div className="seg grid2">
-          {['notes', 'accounts', 'contacts', 'files'].map((k) => (
+          {['notes', 'accounts', 'contacts', 'files', 'events'].map((k) => (
             <button key={k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)} style={{ fontSize: 12.5 }}>{t['kind_' + k]}</button>
           ))}
         </div>

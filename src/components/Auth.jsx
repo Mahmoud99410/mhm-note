@@ -53,7 +53,7 @@ export function Setup({ onCreated, onRestored }) {
       <div className="field"><label>{t.confirmPassword}</label><PasswordInput value={pw2} onChange={(v) => { setPw2(v); setErr(''); }} onEnter={go} autoComplete="new-password" /></div>
       {err && <div className="error">{err}</div>}
       <button className="btn block" disabled={busy} onClick={go}>{busy ? t.creating : t.createVault}</button>
-      {N.platform !== 'web' && (
+      {(
         <button className="link-btn" onClick={() => setRestore(true)}><CloudDownload size={16} style={{ verticalAlign: -3, marginInlineEnd: 6 }} />{t.restoreFromCloud}</button>
       )}
     </Shell>

@@ -44,7 +44,7 @@ export async function itemHtml(it, t, lang, folderName) {
   let body = '';
   if (it.type === 'note') {
     body = `<div style="font-size:${it.fontSize || 17}px;line-height:1.8;unicode-bidi:plaintext">${cleanHtml(it.html)}</div>${await imagesHtml(it)}`;
-    const files = (it.attachments || []).filter((a) => a.type === 'application/pdf');
+    const files = (it.attachments || []).filter((a) => a.w == null && !(a.type || '').startsWith('image/'));
     if (files.length) body += `<p style="color:#6a7a72;font-size:12px">📎 ${files.map((f) => esc(f.name)).join('، ')}</p>`;
   } else if (it.type === 'account') {
     body = `<table style="border-collapse:collapse;font-size:15px">${row(t.email, it.email, true)}${row(t.username, it.username, true)}${row(t.password, it.password, true)}${row(t.link, it.url, true)}${row(t.notes, it.notes)}</table>`;

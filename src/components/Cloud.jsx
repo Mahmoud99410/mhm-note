@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Cloud, CloudOff, RefreshCw, HardDrive, AlertTriangle, CheckCircle2, LogOut, Fingerprint } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCw, HardDrive, AlertTriangle, CheckCircle2, LogOut, Fingerprint, Download, Share2, Upload, FileUp } from 'lucide-react';
 import { useT, useSettings } from '../settings';
 import * as V from '../vault';
 import * as N from '../native';
 import { googleDrive, pcloud, pcloudLogin, pcloudOAuthReady, pcloudAuthUrl, pcloudExchange } from '../cloud';
-import { syncNow, useSyncStatus, readRemote } from '../sync';
+import { syncNow, useSyncStatus, readRemote, buildBackup, parseBackup, backupAdapter, importBlobs, syncWith } from '../sync';
+import * as D from '../device';
+import { useRef } from 'react';
 import { Sheet, PasswordInput, Confirm, toast } from './ui';
 import { fmtDate } from '../constants';
 
@@ -146,6 +148,7 @@ export function RestoreFromCloud({ onDone, onBack }) {
       <p className="sub">{t.restoreHint}</p>
       <button className="btn ghost block" style={{ marginBottom: 10 }} disabled={busy} onClick={viaGoogle}><GoogleG />{t.googleDrive}</button>
       <button className="btn ghost block" disabled={busy} onClick={() => setPcSheet(true)}><PcloudIcon />{t.pcloud}</button>
+      <RestoreFromFileButton onDone={onDone} />
       {err && <div className="error" style={{ marginTop: 12 }}>{err}</div>}
       <button className="link-btn" onClick={onBack}>{t.back}</button>
       {pcSheet && (
@@ -336,3 +339,108 @@ export function SyncBadge() {
   );
 }
 export { HardDrive };
+
+// ---------- manual backup file ----------
+const backupName = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `MHM-NOTE-backup-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
+};
+async function backupBytes() {
+  return new TextEncoder().encode(JSON.stringify(await buildBackup()));
+}
+
+export function BackupSection() {
+  const t = useT();
+  const fileRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [adopt, setAdopt] = useState(null);
+  const run = async (fn) => {
+    setBusy(true);
+    try {
+      await fn();
+    } catch (e) {
+      if (!/cancel/i.test(String(e?.message))) toast('⚠️ ' + (e?.message === 'BAD_BACKUP' ? t.badBackup : e?.message || e));
+    }
+    setBusy(false);
+  };
+  const save = () =>
+    run(async () => {
+      const r = await D.saveFile(await backupBytes(), backupName(), 'application/json');
+      if (r) toast(t.savedTo + ' ' + (r.where || ''));
+    });
+  const share = () => run(async () => D.shareFile(await backupBytes(), backupName(), 'application/json', 'MHM NOTE backup'));
+  const onFile = (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    run(async () => {
+      let obj;
+      try {
+        obj = parseBackup(await f.text());
+      } catch {
+        throw new Error('BAD_BACKUP');
+      }
+      const local = (await V.syncSnapshot()).vault;
+      if (obj.vault.vid && local?.vid && obj.vault.vid !== local.vid) {
+        setAdopt(obj);
+        return;
+      }
+      await syncWith(backupAdapter(obj));
+      toast(t.backupDone);
+      syncNow();
+    });
+  };
+  return (
+    <>
+      <div className="side-label" style={{ paddingInline: 4 }}>{t.backupTitle}</div>
+      <div className="settings-group">
+        <button className="setting" style={{ width: '100%', textAlign: 'start' }} disabled={busy} onClick={save}>
+          <Download size={19} className="muted" /><span className="lbl">{t.backupSave}</span>
+        </button>
+        <button className="setting" style={{ width: '100%', textAlign: 'start' }} disabled={busy} onClick={share}>
+          <Share2 size={19} className="muted" /><span className="lbl">{t.backupShare}</span>
+        </button>
+        <button className="setting" style={{ width: '100%', textAlign: 'start' }} disabled={busy} onClick={() => fileRef.current.click()}>
+          <Upload size={19} className="muted" /><span className="lbl">{t.backupRestore}</span>
+        </button>
+        <div className="setting"><span className="hint">🔒 {t.backupHint}</span></div>
+      </div>
+      <input ref={fileRef} type="file" accept="*/*" hidden onChange={onFile} />
+      {busy && <div className="scrim" style={{ alignItems: 'center' }}><div className="card" style={{ padding: 18 }}><span className="spinner" /></div></div>}
+      {adopt && <AdoptVault remote={adopt} wipeLocal after={() => importBlobs(adopt)} onClose={() => setAdopt(null)} />}
+    </>
+  );
+}
+
+// first launch: restore from a backup file
+export function RestoreFromFileButton({ onDone }) {
+  const t = useT();
+  const ref = useRef(null);
+  const [obj, setObj] = useState(null);
+  const [err, setErr] = useState('');
+  return (
+    <>
+      <button className="btn ghost block" style={{ marginTop: 10 }} onClick={() => ref.current.click()}><FileUp size={18} />{t.restoreFromFile}</button>
+      <input
+        ref={ref}
+        type="file"
+        accept="*/*"
+        hidden
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (!f) return;
+          try {
+            setObj(parseBackup(await f.text()));
+            setErr('');
+          } catch {
+            setErr(t.badBackup);
+          }
+        }}
+      />
+      {err && <div className="error" style={{ marginTop: 10 }}>{err}</div>}
+      {obj && <AdoptVault remote={obj} after={async () => { await importBlobs(obj); onDone(); }} onClose={() => setObj(null)} />}
+    </>
+  );
+}

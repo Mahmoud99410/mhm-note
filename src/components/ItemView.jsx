@@ -7,8 +7,9 @@ import { htmlToText, FOLDER_ICONS } from '../constants';
 import { LockGate, MenuSheet, SetLockSheet, Sheet, toast } from './ui';
 import { BackBtn } from './Folder';
 import NoteEditor from './NoteEditor';
-import { AccountEditor, ContactEditor, FileItemView } from './Editors';
+import { AccountEditor, ContactEditor, FileItemView, EventEditor } from './Editors';
 import { useExporter, ReminderSheet, DetailsSheet } from './Actions';
+import { syncNow } from '../sync';
 
 function isEmpty(it) {
   if (!it) return false;
@@ -16,6 +17,7 @@ function isEmpty(it) {
   if (it.type === 'account') return !it.title?.trim() && !it.email && !it.username && !it.password && !it.notes;
   if (it.type === 'contact') return !it.title?.trim() && !(it.phones || []).some((p) => p.number) && !it.notes;
   if (it.type === 'file') return !(it.attachments || []).length;
+  if (it.type === 'event') return !it.title?.trim() && !it.notes;
   return false;
 }
 
@@ -40,7 +42,7 @@ export default function ItemView({ id }) {
   useEffect(() => () => {
     const cur = V.getState().items.find((x) => x.id === id);
     if (cur && cur.fresh && isEmpty(cur)) V.deleteForever(id);
-    else V.flush();
+    else V.flush().then(() => syncNow());
   }, [id]);
 
   if (!it) return <div className="topbar"><BackBtn /></div>;
@@ -94,6 +96,8 @@ export default function ItemView({ id }) {
         <AccountEditor it={it} update={update} />
       ) : it.type === 'file' ? (
         <FileItemView it={it} update={update} />
+      ) : it.type === 'event' ? (
+        <EventEditor it={it} update={update} />
       ) : (
         <ContactEditor it={it} update={update} />
       )}
@@ -144,5 +148,5 @@ export default function ItemView({ id }) {
 }
 
 function kindFits(kind, type) {
-  return (kind === 'notes' && type === 'note') || (kind === 'accounts' && type === 'account') || (kind === 'contacts' && type === 'contact') || (kind === 'files' && type === 'file');
+  return (kind === 'notes' && type === 'note') || (kind === 'accounts' && type === 'account') || (kind === 'contacts' && type === 'contact') || (kind === 'files' && type === 'file') || (kind === 'events' && type === 'event');
 }

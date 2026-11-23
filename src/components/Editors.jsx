@@ -3,9 +3,11 @@ import { Copy, Eye, EyeOff, ExternalLink, Phone, Plus, X, FileText, Share2, Down
 import * as V from '../vault';
 import * as D from '../device';
 import { fmtSize } from './Actions';
+import { showFile, viewable, KindIcon, kindColor } from './FileViewer';
 import { useT, useSettings } from '../settings';
 import { PLATFORMS, platformColor, COLORS, fmtFull } from '../constants';
 import { copyText, Confirm, toast } from './ui';
+import { alertLabel } from '../device';
 
 function Dates({ it }) {
   const t = useT();
@@ -116,24 +118,20 @@ export function ContactEditor({ it, update }) {
       <div className="container" style={{ maxWidth: 640 }}>
         <div className="detail-head">
           <div className="badge" style={{ '--bc': it.color || '#17845a' }}>{(it.title || '#').trim().charAt(0).toUpperCase()}</div>
-          <input autoFocus={it.fresh} placeholder={t.name} value={it.title} onChange={(e) => update({ title: e.target.value })} />
+          <div className="grow" style={{ fontSize: 21, fontWeight: 700 }}>{it.title || <span className="muted">{t.newContact}</span>}</div>
         </div>
         <div className="card" style={{ padding: '18px 16px 4px' }}>
+          <div className="field">
+            <label><span className="field-kind user">👤 {t.name}</span></label>
+            <div className="input-wrap"><input className="auto-dir" autoFocus={it.fresh} placeholder={t.namePh} value={it.title} onChange={(e) => update({ title: e.target.value })} /></div>
+          </div>
           {phones.map((p, i) => (
             <div className="field" key={i}>
               <label className="row" style={{ justifyContent: 'space-between' }}>
-                <span className="field-kind phone">{t.phone}{phones.length > 1 ? ` ${i + 1}` : ''}</span>
+                <span className="field-kind phone">📞 {t.phone}{phones.length > 1 ? ` ${i + 1}` : ''}</span>
               </label>
               <div className="input-wrap">
-                <input
-                  className="auto-dir"
-                  style={{ width: 90, flex: '0 0 90px', fontSize: 13.5 }}
-                  placeholder={t.title}
-                  value={p.label || ''}
-                  onChange={(e) => setPhone(i, { label: e.target.value })}
-                />
-                <span style={{ width: 1, height: 26, background: 'var(--border)' }} />
-                <input className="ltr" style={{ textAlign: 'start' }} type="tel" value={p.number} onChange={(e) => setPhone(i, { number: e.target.value })} />
+                <input className="ltr" style={{ textAlign: 'start' }} type="tel" inputMode="tel" placeholder="07X XXX XXXX" value={p.number} onChange={(e) => setPhone(i, { number: e.target.value })} />
                 {p.number && (
                   <a className="icon-btn sm" href={'tel:' + p.number.replace(/[^\d+]/g, '')} title={t.call}><Phone size={18} /></a>
                 )}
@@ -170,7 +168,7 @@ async function withBytes(a, fn, t) {
     if (!/cancel/i.test(String(e?.message))) toast('⚠️ ' + (e?.message || e));
   }
 }
-export const fileOpen = (a, t) => withBytes(a, (b) => D.openFile(b, a.name, a.type), t);
+export const fileOpen = (a, t) => withBytes(a, async (b) => (viewable(a.name, a.type) ? showFile(a.name, b) : D.openFile(b, a.name, a.type)), t);
 export const fileShare = (a, t) => withBytes(a, (b) => D.shareFile(b, a.name, a.type, a.name), t);
 export const fileSave = (a, t) =>
   withBytes(a, async (b) => {
@@ -189,7 +187,7 @@ export function FileChips({ it, update }) {
       <div className="list" style={{ marginTop: 8 }}>
         {files.map((a) => (
           <div key={a.id} className="item" style={{ padding: '10px 12px' }}>
-            <button className="badge" style={{ '--bc': '#e0473e', width: 40, height: 40 }} onClick={() => fileOpen(a, t)}><FileText size={20} /></button>
+            <button className="badge" style={{ '--bc': kindColor(a.name, a.type), width: 40, height: 40 }} onClick={() => fileOpen(a, t)}><KindIcon name={a.name} type={a.type} /></button>
             <button className="grow" style={{ textAlign: 'start' }} onClick={() => fileOpen(a, t)}>
               <div className="t ellipsis auto-dir" style={{ fontSize: 14 }}>{a.name}</div>
               <div className="s">{fmtSize(a.size)}</div>
@@ -221,8 +219,8 @@ export function FileItemView({ it, update }) {
     <div className="scroll">
       <div className="container" style={{ maxWidth: 640 }}>
         <div className="card" style={{ padding: 22, textAlign: 'center', marginTop: 10 }}>
-          <button className="badge" style={{ '--bc': '#e0473e', width: 84, height: 84, borderRadius: 26, margin: '0 auto 12px' }} onClick={() => a && fileOpen(a, t)}>
-            <FileText size={42} />
+          <button className="badge" style={{ '--bc': a ? kindColor(a.name, a.type) : '#e0473e', width: 84, height: 84, borderRadius: 26, margin: '0 auto 12px' }} onClick={() => a && fileOpen(a, t)}>
+            {a ? <KindIcon name={a.name} type={a.type} size={42} /> : <FileText size={42} />}
           </button>
           <input
             className="title-input"
@@ -245,6 +243,80 @@ export function FileItemView({ it, update }) {
           </div>
         </div>
         <Dates it={it} />
+      </div>
+    </div>
+  );
+}
+
+// ---------- match / appointment ----------
+export const ALERT_CHOICES = [0, 15, 30, 60, 120, 180, 1440, 2880];
+export const DURATIONS = [60, 90, 120, 150, 180, 240];
+function toLocalInput(ts) {
+  const d = new Date(ts - new Date(ts).getTimezoneOffset() * 60000);
+  return d.toISOString().slice(0, 16);
+}
+export function countdown(it, t, now = Date.now()) {
+  const start = it.at;
+  const end = start + (it.duration || 120) * 60000;
+  if (now >= end) return { text: t.eventEnded, state: 'ended' };
+  if (now >= start) return { text: t.eventLive, state: 'live' };
+  const m = Math.round((start - now) / 60000);
+  if (m < 60) return { text: `${t.startsIn} ${m} ${t.minutesShort}`, state: 'soon' };
+  const h = Math.round(m / 60);
+  if (h < 48) return { text: `${t.startsIn} ${h} ${t.hours}`, state: 'soon' };
+  return { text: `${t.startsIn} ${Math.round(h / 24)} ${t.days}`, state: 'later' };
+}
+
+export function EventEditor({ it, update }) {
+  const t = useT();
+  const s = useSettings();
+  const alerts = it.alerts || [];
+  const toggle = (m) => update({ alerts: alerts.includes(m) ? alerts.filter((x) => x !== m) : [...alerts, m].sort((a, b) => b - a) });
+  const cd = countdown(it, t);
+  return (
+    <div className="scroll">
+      <div className="container" style={{ maxWidth: 640 }}>
+        <div className="detail-head">
+          <div className="badge" style={{ '--bc': '#17845a', fontSize: 26 }}>⚽</div>
+          <input autoFocus={it.fresh} placeholder={t.eventTitlePh} value={it.title} onChange={(e) => update({ title: e.target.value })} />
+        </div>
+        <div className={'event-banner ' + cd.state}>{cd.text}</div>
+        <div className="card" style={{ padding: '18px 16px 4px' }}>
+          <div className="field">
+            <label>{t.eventStart}</label>
+            <div className="input-wrap">
+              <input type="datetime-local" className="ltr" style={{ textAlign: 'start' }} value={toLocalInput(it.at)} onChange={(e) => e.target.value && update({ at: new Date(e.target.value).getTime() })} />
+            </div>
+          </div>
+          <div className="field">
+            <label>{t.eventDuration}</label>
+            <div className="input-wrap">
+              <select value={it.duration || 120} onChange={(e) => update({ duration: Number(e.target.value) })}>
+                {DURATIONS.map((d) => <option key={d} value={d}>{d % 60 ? `${(d / 60).toFixed(1)} ${t.hours}` : `${d / 60} ${d / 60 >= 3 ? t.hoursFew || t.hours : t.hours}`}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="field">
+            <label>🔔 {t.remindMe}</label>
+            <div className="chips">
+              {ALERT_CHOICES.map((m) => (
+                <button key={m} className={'chip' + (alerts.includes(m) ? ' on' : '')} onClick={() => toggle(m)}>{alertLabel(m, t)}</button>
+              ))}
+            </div>
+          </div>
+          <div className="setting" style={{ borderBottom: 0 }}>
+            <span className="lbl" style={{ fontWeight: 500 }}>{t.autoDeleteEvent}</span>
+            <button className={'switch' + (it.autoDelete !== false ? ' on' : '')} onClick={() => update({ autoDelete: it.autoDelete === false })} />
+          </div>
+        </div>
+        <div className="field" style={{ marginTop: 16 }}>
+          <label>{t.notes}</label>
+          <div className="input-wrap">
+            <textarea className="auto-dir" placeholder={t.eventNotesPh} value={it.notes || ''} onChange={(e) => update({ notes: e.target.value })} rows={3} />
+          </div>
+        </div>
+        <Dates it={it} />
+        {s.lang && null}
       </div>
     </div>
   );

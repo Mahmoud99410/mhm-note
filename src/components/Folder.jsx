@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { useRef } from 'react';
 import { ArrowRight, Plus, Lock, Pin, Star, MoreVertical, Mail, KeyRound, Phone, Copy, Search, X, ArrowUpDown, Check, Bell, FileText } from 'lucide-react';
 import { fmtSize } from './Actions';
+import { KindIcon, kindColor } from './FileViewer';
+import { countdown } from './Editors';
+import { alertLabel } from '../device';
 import { toast } from './ui';
 import { useT, useSettings, setSettings } from '../settings';
 import { useNav } from '../App';
@@ -25,6 +28,12 @@ export function newItemFor(folder) {
   if (folder.kind === 'accounts') return { ...base, type: 'account', title: '', email: '', username: '', password: '', url: '', notes: '', fresh: true };
   if (folder.kind === 'contacts') return { ...base, type: 'contact', title: '', phones: [{ number: '' }], notes: '', fresh: true };
   if (folder.kind === 'files') return { ...base, type: 'file', title: '', notes: '', attachments: [] };
+  if (folder.kind === 'events') {
+    const d = new Date(Date.now() + 86400000);
+    d.setMinutes(0, 0, 0);
+    d.setHours(20);
+    return { ...base, type: 'event', title: '', at: d.getTime(), duration: 120, alerts: [60], autoDelete: true, notes: '', fresh: true };
+  }
   return { ...base, type: 'note', title: '', html: '', pageColor: 'default', lines: false, fontSize: 17, attachments: [], fresh: true };
 }
 
@@ -100,11 +109,33 @@ export function ItemRow({ it, showFolder }) {
       </div>
     );
   }
+  if (it.type === 'event') {
+    const d = new Date(it.at);
+    const cd = countdown(it, t);
+    const loc = s.lang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-GB';
+    return (
+      <div className={'item event-row ' + cd.state} role="button" tabIndex={0} onClick={open} style={{ cursor: 'pointer' }}>
+        <div className="date-badge">
+          <b>{d.getDate()}</b>
+          <span>{d.toLocaleDateString(loc, { month: 'short' })}</span>
+        </div>
+        <div className="grow">
+          <div className="t ellipsis auto-dir">{it.title || t.untitled}</div>
+          <div className="s">
+            🕒 {d.toLocaleDateString(loc, { weekday: 'long' })} {d.toLocaleTimeString(loc, { hour: 'numeric', minute: '2-digit' })}
+          </div>
+          <div className={'cd ' + cd.state}>{cd.text}{(it.alerts || []).length > 0 && <span className="muted"> • 🔔 {(it.alerts || []).map((m) => alertLabel(m, t)).join('، ')}</span>}</div>
+          {folderTag}
+        </div>
+        {icons}
+      </div>
+    );
+  }
   if (it.type === 'file') {
     const a = it.attachments?.[0];
     return (
       <div className="item" role="button" tabIndex={0} onClick={open} style={{ cursor: 'pointer' }}>
-        <div className="badge" style={{ '--bc': '#e0473e' }}><FileText size={22} /></div>
+        <div className="badge" style={{ '--bc': a ? kindColor(a.name, a.type) : '#e0473e' }}>{a ? <KindIcon name={a.name} type={a.type} size={22} /> : <FileText size={22} />}</div>
         <div className="grow">
           <div className="t ellipsis auto-dir">{it.title || a?.name || t.untitled}</div>
           <div className="s"><span className="ltr">{a ? fmtSize(a.size) : ''}</span> • 🕒 {fmtFull(it.createdAt, s.lang)}</div>
@@ -132,7 +163,7 @@ export function ItemRow({ it, showFolder }) {
       </div>
       {locked ? <div className="snippet">🔒 {t.locked}</div> : text && <div className="snippet auto-dir">{text}</div>}
       {!locked && thumbs.length > 0 && <div className="thumbs">{thumbs.slice(0, 4).map((a) => <Thumb key={a.id} id={a.id} />)}</div>}
-      {!locked && files > 0 && <div className="snippet">📎 {files} PDF</div>}
+      {!locked && files > 0 && <div className="snippet">📎 {files}</div>}
       <div className="foot">{folderTag}<span>🕒 {fmtFull(it.createdAt, s.lang)}</span>{it.updatedAt - (it.createdAt || 0) > 60000 && <span>✎ {fmtFull(it.updatedAt, s.lang)}</span>}</div>
     </div>
   );
@@ -177,7 +208,7 @@ export default function FolderView({ id }) {
     const n = q.toLowerCase();
     list = list.filter((i) => [i.title, i.email, i.username, htmlToText(i.html), i.notes, ...(i.phones || []).map((p) => p.number)].join(' ').toLowerCase().includes(n));
   }
-  list = sortList(list, st.sortBy);
+  list = f.kind === 'events' ? [...list].sort((a, b) => (a.at || 0) - (b.at || 0)) : sortList(list, st.sortBy);
   const pickRef = useRef(null);
   const onPick = async (e) => {
     const files = [...(e.target.files || [])];
@@ -185,7 +216,7 @@ export default function FolderView({ id }) {
     for (const file of files) {
       try {
         const a = await V.addFile(file);
-        V.saveItem({ ...newItemFor(f), title: file.name.replace(/\.pdf$/i, ''), attachments: [a] });
+        V.saveItem({ ...newItemFor(f), title: file.name.replace(/\.[a-z0-9]+$/i, ''), attachments: [a] });
       } catch (err) {
         toast(err.message === 'TOO_BIG' ? t.fileTooBig : '⚠️ ' + err.message);
       }
@@ -197,7 +228,7 @@ export default function FolderView({ id }) {
     V.saveItem(it);
     nav.go({ name: 'item', id: it.id });
   };
-  const addLabel = f.kind === 'accounts' ? t.newAccount : f.kind === 'contacts' ? t.newContact : f.kind === 'files' ? t.newFile : t.newNote;
+  const addLabel = f.kind === 'accounts' ? t.newAccount : f.kind === 'contacts' ? t.newContact : f.kind === 'files' ? t.newFile : f.kind === 'events' ? t.newEvent : t.newNote;
   return (
     <>
       <div className="topbar">
@@ -241,7 +272,7 @@ export default function FolderView({ id }) {
         <button className="fab" onClick={add}><Plus size={24} /><span>{addLabel}</span></button>
       )}
       {!locked && f.kind === 'files' && (
-        <input ref={pickRef} type="file" accept="application/pdf,.pdf" multiple hidden onChange={onPick} />
+        <input ref={pickRef} type="file" accept="*/*" multiple hidden onChange={onPick} />
       )}
       {menuEl}
       {sorting && <SortSheet onClose={() => setSorting(false)} />}

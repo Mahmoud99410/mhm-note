@@ -158,9 +158,43 @@ let desktopTimer = null;
 let fired = new Set();
 
 // Re-schedule every reminder from the (synced) item data
+// minutes-before label, e.g. "بعد ساعة"
+export function alertLabel(m, t) {
+  if (!m) return t.alert_0;
+  if (m % 1440 === 0) return m === 1440 ? t.alert_1d : m === 2880 ? t.alert_2d : `${m / 1440} ${t.days}`;
+  if (m % 60 === 0) return m === 60 ? t.alert_1h : m === 120 ? t.alert_2h : `${m / 60} ${m / 60 <= 10 ? t.hoursFew || t.hours : t.hours}`;
+  return `${m} ${t.minutesShort}`;
+}
+
+// every notification we need: plain reminders + "before the match" alerts of events
+function buildEntries(items, t) {
+  const out = [];
+  const now = Date.now();
+  for (const i of items) {
+    if (i.deletedAt) continue;
+    const name = i.lock ? t.reminder : i.title || t.reminder;
+    if (i.reminder?.at) out.push({ key: i.id, itemId: i.id, reminder: i.reminder, title: '⏰ ' + name, body: i.reminder.note || t.appName });
+    if (i.type === 'event' && i.at) {
+      for (const m of i.alerts || []) {
+        const at = i.at - m * 60000;
+        if (at <= now - 10 * 60000) continue;
+        const when = new Date(i.at).toLocaleTimeString(document.documentElement.lang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-GB', { hour: 'numeric', minute: '2-digit' });
+        out.push({
+          key: i.id + ':' + m,
+          itemId: i.id,
+          reminder: { at, repeat: 'none' },
+          title: '⚽ ' + name,
+          body: (m ? t.startsIn + ' ' + alertLabel(m, t) : t.startsNow) + ' — ' + when,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+// Re-schedule every reminder from the (synced) item data
 export async function scheduleReminders(items, t, onOpen) {
-  const list = items.filter((i) => i.reminder?.at && !i.deletedAt);
-  const label = (i) => (i.lock ? t.reminder : i.title || t.reminder);
+  const list = buildEntries(items, t);
   if (platform === 'android') {
     const { LocalNotifications } = await import('@capacitor/local-notifications');
     try {
@@ -169,11 +203,11 @@ export async function scheduleReminders(items, t, onOpen) {
       const pending = await LocalNotifications.getPending();
       if (pending.notifications.length) await LocalNotifications.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
       const notifs = [];
-      for (const i of list) {
-        const at = nextFire(i.reminder);
+      for (const e of list) {
+        const at = nextFire(e.reminder);
         if (!at) continue;
         const d = new Date(at);
-        const rep = i.reminder.repeat;
+        const rep = e.reminder.repeat;
         const schedule =
           rep && rep !== 'none'
             ? {
@@ -185,11 +219,11 @@ export async function scheduleReminders(items, t, onOpen) {
                 allowWhileIdle: true,
               }
             : { at: d, allowWhileIdle: true };
-        notifs.push({ id: reminderNumId(i.id), title: '⏰ ' + label(i), body: i.reminder.note || t.appName, schedule, extra: { itemId: i.id } });
+        notifs.push({ id: reminderNumId(e.key), title: e.title, body: e.body, schedule, extra: { itemId: e.itemId } });
       }
       if (notifs.length) await LocalNotifications.schedule({ notifications: notifs });
-    } catch (e) {
-      console.warn('reminders', e);
+    } catch (err) {
+      console.warn('reminders', err);
     }
     if (!scheduleReminders.listening) {
       scheduleReminders.listening = true;
@@ -201,18 +235,18 @@ export async function scheduleReminders(items, t, onOpen) {
   clearInterval(desktopTimer);
   const tick = () => {
     const now = Date.now();
-    for (const i of list) {
-      const due = lastDue(i.reminder, now);
+    for (const e of list) {
+      const due = lastDue(e.reminder, now);
       if (!due || now - due > 10 * 60000) continue;
-      const key = i.id + ':' + due;
+      const key = e.key + ':' + due;
       if (fired.has(key) || localStorage.getItem('mhm-fired-' + key)) continue;
       fired.add(key);
       localStorage.setItem('mhm-fired-' + key, '1');
       try {
-        const n = new Notification('⏰ ' + label(i), { body: i.reminder.note || t.appName, requireInteraction: true });
+        const n = new Notification(e.title, { body: e.body, requireInteraction: true });
         n.onclick = () => {
           window.focus();
-          onOpen?.(i.id);
+          onOpen?.(e.itemId);
         };
       } catch {}
       E()?.flash?.();

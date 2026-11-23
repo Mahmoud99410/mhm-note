@@ -14,6 +14,7 @@ import SettingsView from './components/SettingsView';
 import { FOLDER_ICONS } from './constants';
 import { syncNow, syncSoon, resetSyncStatus } from './sync';
 import { SyncBadge } from './components/Cloud';
+import { ViewerHost } from './components/FileViewer';
 
 const NavCtx = createContext(null);
 export const useNav = () => useContext(NavCtx);
@@ -103,7 +104,10 @@ function Shell({ onLock }) {
     syncSoon();
   }, [vstate]);
   // (re)schedule reminders whenever reminder data changes
-  const remKey = vstate.items.filter((i) => i.reminder?.at && !i.deletedAt).map((i) => i.id + i.reminder.at + i.reminder.repeat + (i.title || '') + (i.reminder.note || '')).join('|');
+  const remKey = vstate.items
+    .filter((i) => (i.reminder?.at || (i.type === 'event' && i.at)) && !i.deletedAt)
+    .map((i) => [i.id, i.title, i.reminder?.at, i.reminder?.repeat, i.reminder?.note, i.at, (i.alerts || []).join(',')].join('~'))
+    .join('|');
   useEffect(() => {
     const id = setTimeout(
       () => scheduleReminders(V.getState().items, t, (itemId) => itemId && setStack([{ name: 'home' }, { name: 'item', id: itemId }])),
@@ -112,6 +116,27 @@ function Shell({ onLock }) {
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remKey, t]);
+  // matches: remove finished events automatically (to the trash), and add the matches folder once
+  useEffect(() => {
+    const sweep = () => {
+      const now = Date.now();
+      for (const i of V.getState().items) {
+        if (i.type === 'event' && !i.deletedAt && i.autoDelete !== false && i.at && now > i.at + (i.duration || 120) * 60000) {
+          V.saveItem({ ...i, deletedAt: now });
+        }
+      }
+    };
+    sweep();
+    const iv = setInterval(sweep, 60000);
+    if (!localStorage.getItem('mhm-events-seeded')) {
+      localStorage.setItem('mhm-events-seeded', '1');
+      if (!V.getState().folders.some((f) => f.kind === 'events')) {
+        const ar = document.documentElement.lang === 'ar';
+        V.saveFolder({ id: 'events-default', name: ar ? 'مواعيد المباريات' : 'Match times', kind: 'events', icon: 'trophy', color: '#e5a800', order: 7, pinned: false, archived: false, createdAt: Date.now() });
+      }
+    }
+    return () => clearInterval(iv);
+  }, []);
   useEffect(() => {
     const pendingOpen = sessionStorage.getItem('mhm-open-item');
     if (pendingOpen) {
@@ -134,7 +159,7 @@ function Shell({ onLock }) {
   // hardware back button (Android) and Escape / mouse back on desktop
   useEffect(() => {
     const onBack = () => {
-      if (document.querySelector('.scrim, .viewer')) return; // sheets handle themselves
+      if (document.querySelector('.scrim, .viewer, .file-viewer')) return; // sheets handle themselves
       if (stackRef.current.length > 1) setStack((s) => s.slice(0, -1));
       else window.dispatchEvent(new Event('mhm-exit'));
     };
@@ -166,6 +191,7 @@ function Shell({ onLock }) {
         <Sidebar />
         <main className="main">{view}</main>
       </div>
+      <ViewerHost />
     </NavCtx.Provider>
   );
 }

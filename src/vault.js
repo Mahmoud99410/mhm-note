@@ -269,7 +269,10 @@ export async function addFile(file) {
   const id = uid();
   const { iv, ct } = await C.encryptBytes(DEK, bytes);
   await db.putBlob({ id, iv, ct });
-  return { id, name: file.name || 'file.pdf', size: bytes.length, type: file.type || 'application/pdf' };
+  const name = file.name || 'file';
+  const e = name.toLowerCase().split('.').pop();
+  const byExt = { pdf: 'application/pdf', zip: 'application/zip', md: 'text/markdown', markdown: 'text/markdown', html: 'text/html', htm: 'text/html', txt: 'text/plain' }[e];
+  return { id, name, size: bytes.length, type: byExt || file.type || 'application/octet-stream' };
 }
 export async function blobBytes(id) {
   const b = await db.getBlob(id);
