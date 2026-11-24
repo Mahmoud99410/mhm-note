@@ -518,3 +518,15 @@ mark { background: var(--gold-soft); color: inherit; border-radius: 4px; padding
 .event-row.ended { opacity: 0.55; }
 
 .quick svg { width: 19px; height: 19px; }
+
+/* ---------- drag to reorder ---------- */
+.sort-cell { position: relative; }
+.folder-grid.sorting .sort-cell { touch-action: none; cursor: grab; animation: jiggle 0.5s ease-in-out infinite alternate; }
+.folder-grid.sorting .sort-cell:nth-child(2n) { animation-delay: 0.15s; }
+.folder-grid.sorting .folder-card { pointer-events: none; outline: 2px dashed color-mix(in srgb, var(--primary) 45%, transparent); }
+.sort-cell.dragging { animation: none !important; z-index: 5; }
+.sort-cell.dragging .folder-card { transform: scale(1.06); box-shadow: var(--shadow-lg); outline: 2px solid var(--primary); }
+.sort-cell .grip { position: absolute; bottom: 8px; inset-inline-end: 8px; color: var(--primary); background: var(--primary-soft); border-radius: 8px; padding: 3px; pointer-events: none; }
+@keyframes jiggle { from { transform: rotate(-0.8deg); } to { transform: rotate(0.8deg); } }
+.sort-hint { text-align: center; margin: -4px 0 10px; color: var(--primary); font-weight: 600; }
+.folder-grid { user-select: none; }

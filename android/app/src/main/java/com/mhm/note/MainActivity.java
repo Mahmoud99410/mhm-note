@@ -1,6 +1,7 @@
 package com.mhm.note;
 
 import android.content.Intent;
+import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginHandle;
@@ -9,6 +10,12 @@ import ee.forgr.capacitor.social.login.ModifiedMainActivityForSocialLoginPlugin;
 import ee.forgr.capacitor.social.login.SocialLoginPlugin;
 
 public class MainActivity extends BridgeActivity implements ModifiedMainActivityForSocialLoginPlugin {
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(MhmTonePlugin.class);
+        super.onCreate(savedInstanceState);
+    }
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {

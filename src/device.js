@@ -1,5 +1,6 @@
 // Files, sharing, PDF export and reminders across Android / Windows / web.
 import { platform } from './native';
+import { channelId, playReminderTone, getTone } from './tone';
 
 const E = () => window.mhm;
 
@@ -219,7 +220,7 @@ export async function scheduleReminders(items, t, onOpen) {
                 allowWhileIdle: true,
               }
             : { at: d, allowWhileIdle: true };
-        notifs.push({ id: reminderNumId(e.key), title: e.title, body: e.body, schedule, extra: { itemId: e.itemId } });
+        notifs.push({ id: reminderNumId(e.key), title: e.title, body: e.body, schedule, extra: { itemId: e.itemId }, channelId: channelId() });
       }
       if (notifs.length) await LocalNotifications.schedule({ notifications: notifs });
     } catch (err) {
@@ -243,7 +244,8 @@ export async function scheduleReminders(items, t, onOpen) {
       fired.add(key);
       localStorage.setItem('mhm-fired-' + key, '1');
       try {
-        const n = new Notification(e.title, { body: e.body, requireInteraction: true });
+        const n = new Notification(e.title, { body: e.body, requireInteraction: true, silent: getTone().id !== 'default' });
+        playReminderTone();
         n.onclick = () => {
           window.focus();
           onOpen?.(e.itemId);

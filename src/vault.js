@@ -213,11 +213,15 @@ export async function deleteForever(id) {
     state.items = state.items.filter((x) => x.id !== id);
   }
   if (f) {
-    for (const child of state.items.filter((x) => x.folderId === id)) await destroyItem(child);
-    state.items = state.items.filter((x) => x.folderId !== id);
-    await db.deleteRecord(id);
-    await addTombs([id]);
-    state.folders = state.folders.filter((x) => x.id !== id);
+    // the folder, every sub-folder below it, and all their items
+    const ids = [id];
+    for (let i = 0; i < ids.length; i++) state.folders.filter((x) => x.parentId === ids[i]).forEach((x) => ids.push(x.id));
+    const set = new Set(ids);
+    for (const child of state.items.filter((x) => set.has(x.folderId))) await destroyItem(child);
+    state.items = state.items.filter((x) => !set.has(x.folderId));
+    for (const fid of ids) await db.deleteRecord(fid);
+    await addTombs(ids);
+    state.folders = state.folders.filter((x) => !set.has(x.id));
   }
   emit();
 }

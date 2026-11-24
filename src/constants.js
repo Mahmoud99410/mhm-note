@@ -128,3 +128,34 @@ export function sortList(list, by = 'updated') {
   }[by] || ((a, b) => b.updatedAt - a.updatedAt);
   return [...list].sort((a, b) => pin(a, b) || cmp(a, b));
 }
+
+// ---------- nested folders ----------
+const sortByOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0) || (a.createdAt || 0) - (b.createdAt || 0);
+export function folderHelpers(folders) {
+  const byId = new Map(folders.map((f) => [f.id, f]));
+  const chain = (id) => {
+    const out = [];
+    let f = byId.get(id);
+    let guard = 0;
+    while (f && guard++ < 50) {
+      out.unshift(f);
+      f = f.parentId ? byId.get(f.parentId) : null;
+    }
+    return out;
+  };
+  return {
+    byId,
+    chain,
+    // hidden from normal views: the folder or any parent is deleted or archived
+    hidden: (id) => chain(id).some((f) => f.deletedAt || f.archived),
+    deleted: (id) => chain(id).some((f) => f.deletedAt),
+    path: (id) => chain(id).map((f) => f.name).join(' › '),
+    children: (id) => folders.filter((f) => (f.parentId || null) === (id || null) && !f.deletedAt && !f.archived).sort(sortByOrder),
+    descendants: (id) => {
+      const out = [];
+      const walk = (pid) => folders.filter((f) => f.parentId === pid).forEach((f) => (out.push(f), walk(f.id)));
+      walk(id);
+      return out;
+    },
+  };
+}

@@ -6,7 +6,7 @@ import { reminderLabel } from './Actions';
 import { useT } from '../settings';
 import { useNav } from '../App';
 import * as V from '../vault';
-import { htmlToText, FOLDER_ICONS } from '../constants';
+import { htmlToText, FOLDER_ICONS, folderHelpers } from '../constants';
 import { BackBtn, ItemRow, sortItems } from './Folder';
 import { FolderCard, useFolderMenu } from './Home';
 import { Confirm, toast } from './ui';
@@ -45,7 +45,7 @@ export function SearchView() {
   const index = useMemo(() => {
     const fmap = Object.fromEntries(folders.map((f) => [f.id, f]));
     return items
-      .filter((i) => !i.deletedAt && !fmap[i.folderId]?.deletedAt)
+      .filter((i) => !i.deletedAt && !folderHelpers(folders).deleted(i.folderId))
       .map((i) => {
         const f = fmap[i.folderId];
         const hidden = (i.lock && !V.isOpened(i.id)) || (f?.lock && !V.isOpened(f.id));
@@ -57,7 +57,7 @@ export function SearchView() {
   }, [folders, items]);
   const n = q.trim().toLowerCase();
   const resItems = n ? sortItems(index.filter((x) => x.text.includes(n)).map((x) => x.it)) : [];
-  const resFolders = n ? folders.filter((f) => !f.deletedAt && f.name.toLowerCase().includes(n)) : [];
+  const resFolders = n ? folders.filter((f) => !folderHelpers(folders).deleted(f.id) && f.name.toLowerCase().includes(n)) : [];
   const count = (id) => items.filter((i) => i.folderId === id && !i.deletedAt).length;
   return (
     <>
@@ -101,8 +101,8 @@ export function SearchView() {
 export function FavoritesView() {
   const t = useT();
   const { folders, items } = V.useVault();
-  const dead = new Set(folders.filter((f) => f.deletedAt).map((f) => f.id));
-  const list = sortItems(items.filter((i) => i.favorite && !i.deletedAt && !dead.has(i.folderId)));
+  const h = folderHelpers(folders);
+  const list = sortItems(items.filter((i) => i.favorite && !i.deletedAt && !h.deleted(i.folderId)));
   return (
     <Page title={t.favorites} icon={Star}>
       {list.length === 0 ? <Empty icon={Star} text={t.empty} /> : <div className="list">{list.map((it) => <ItemRow key={it.id} it={it} showFolder />)}</div>}
@@ -114,9 +114,9 @@ export function ArchiveView() {
   const t = useT();
   const { folders, items } = V.useVault();
   const [openMenu, menuEl] = useFolderMenu();
-  const af = folders.filter((f) => f.archived && !f.deletedAt);
-  const deadOrArchived = new Set(folders.filter((f) => f.deletedAt || f.archived).map((f) => f.id));
-  const ai = sortItems(items.filter((i) => i.archived && !i.deletedAt && !deadOrArchived.has(i.folderId)));
+  const h = folderHelpers(folders);
+  const af = folders.filter((f) => f.archived && !h.deleted(f.id));
+  const ai = sortItems(items.filter((i) => i.archived && !i.deletedAt && !h.hidden(i.folderId)));
   const count = (id) => items.filter((i) => i.folderId === id && !i.deletedAt).length;
   return (
     <Page title={t.archive} icon={Archive}>
@@ -142,9 +142,11 @@ export function TrashView() {
   const t = useT();
   const { folders, items } = V.useVault();
   const [confirm, setConfirm] = useState(null);
-  const df = folders.filter((f) => f.deletedAt);
+  const h = folderHelpers(folders);
+  // only the top-most deleted folder is listed; its sub-folders come back with it
+  const df = folders.filter((f) => f.deletedAt && !(f.parentId && h.deleted(f.parentId)));
   const deadIds = new Set(df.map((f) => f.id));
-  const di = items.filter((i) => i.deletedAt && !deadIds.has(i.folderId)).sort((a, b) => b.deletedAt - a.deletedAt);
+  const di = items.filter((i) => i.deletedAt && !h.deleted(i.folderId)).sort((a, b) => b.deletedAt - a.deletedAt);
   const daysLeft = (ts) => Math.max(0, V.TRASH_KEEP_DAYS - Math.floor((Date.now() - ts) / 864e5));
   const row = (key, icon, color, title, sub, onRestore, id) => (
     <div className="item" key={key}>
@@ -203,9 +205,9 @@ export function RemindersView() {
   const t = useT();
   const s = useSettings();
   const { folders, items } = V.useVault();
-  const dead = new Set(folders.filter((f) => f.deletedAt).map((f) => f.id));
+  const h = folderHelpers(folders);
   const list = items
-    .filter((i) => i.reminder?.at && !i.deletedAt && !dead.has(i.folderId))
+    .filter((i) => i.reminder?.at && !i.deletedAt && !h.deleted(i.folderId))
     .map((i) => ({ i, next: nextFire(i.reminder) }))
     .sort((a, b) => (a.next ?? Infinity) - (b.next ?? Infinity));
   return (

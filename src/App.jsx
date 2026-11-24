@@ -11,7 +11,7 @@ import ItemView from './components/ItemView';
 import { SearchView, TrashView, ArchiveView, FavoritesView, RemindersView } from './components/Lists';
 import { scheduleReminders } from './device';
 import SettingsView from './components/SettingsView';
-import { FOLDER_ICONS } from './constants';
+import { FOLDER_ICONS, folderHelpers } from './constants';
 import { syncNow, syncSoon, resetSyncStatus } from './sync';
 import { SyncBadge } from './components/Cloud';
 import { ViewerHost } from './components/FileViewer';
@@ -95,6 +95,7 @@ function Shell({ onLock }) {
   const [stack, setStack] = useState([{ name: 'home' }]);
   const vstate = V.useVault();
   const t = useContext(LangCtx);
+  const toneRev = useSettings().toneRev;
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
@@ -115,7 +116,7 @@ function Shell({ onLock }) {
     );
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remKey, t]);
+  }, [remKey, t, toneRev]);
   // matches: remove finished events automatically (to the trash), and add the matches folder once
   useEffect(() => {
     const sweep = () => {
@@ -201,7 +202,7 @@ function Sidebar() {
   const nav = useNav();
   const { folders, items } = V.useVault();
   const r = nav.route;
-  const live = folders.filter((f) => !f.deletedAt && !f.archived).sort((a, b) => (b.pinned - a.pinned) || (a.order ?? 0) - (b.order ?? 0));
+  const live = folderHelpers(folders).children(null);
   const count = (id) => items.filter((i) => i.folderId === id && !i.deletedAt && !i.archived).length;
   const link = (name, Icon, label) => (
     <button className={'side-link' + (r.name === name ? ' on' : '')} onClick={() => nav.reset({ name })}>

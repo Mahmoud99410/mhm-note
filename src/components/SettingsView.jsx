@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Settings, KeyRound, ShieldCheck, Lock, ChevronLeft, Copy } from 'lucide-react';
+import { Settings, KeyRound, ShieldCheck, Lock, ChevronLeft, Copy, Music, Play, Check, Upload } from 'lucide-react';
+import { useRef } from 'react';
+import { TONES, getTone, applyTone, previewTone } from '../tone';
 import { useT, useSettings, setSettings } from '../settings';
 import { useNav } from '../App';
 import * as V from '../vault';
@@ -7,7 +9,7 @@ import { BackBtn } from './Folder';
 import { Sheet, PasswordInput, copyText, toast } from './ui';
 import { SyncSection, BiometricRow, BackupSection } from './Cloud';
 
-export const APP_VERSION = '0.6.0';
+export const APP_VERSION = '0.7.0';
 
 function ChangePassword({ onClose }) {
   const t = useT();
@@ -74,6 +76,63 @@ function NewRecovery({ onClose }) {
   );
 }
 
+function ToneSheet({ onClose }) {
+  const t = useT();
+  const [cur, setCur] = useState(getTone());
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef(null);
+  const choose = async (choice) => {
+    setBusy(true);
+    try {
+      await applyTone(choice, t.reminders);
+      setCur({ id: choice.id, name: choice.name });
+      toast(t.toneSet);
+      previewTone(choice.id, choice.bytes, choice.type);
+    } catch (e) {
+      toast('⚠️ ' + (e?.message || e));
+    }
+    setBusy(false);
+  };
+  return (
+    <Sheet title={t.tone} onClose={onClose}>
+      <div className="menu-list">
+        {TONES.map((id) => (
+          <div key={id} className="menu-item" style={{ padding: '6px 8px' }}>
+            <button className="grow row" style={{ textAlign: 'start', padding: '8px 0' }} disabled={busy} onClick={() => choose({ id })}>
+              <Music size={19} className="muted" />
+              <span className="grow">{t['tone_' + id]}</span>
+              {cur.id === id && <Check size={18} style={{ color: 'var(--primary)' }} />}
+            </button>
+            {id !== 'default' && <button className="icon-btn sm" title={t.toneTest} onClick={() => previewTone(id)}><Play size={16} /></button>}
+          </div>
+        ))}
+        {cur.id === 'custom' && (
+          <div className="menu-item" style={{ padding: '6px 8px' }}>
+            <Music size={19} className="muted" />
+            <span className="grow ellipsis">{t.tone_custom}: {cur.name}</span>
+            <Check size={18} style={{ color: 'var(--primary)' }} />
+            <button className="icon-btn sm" onClick={() => previewTone('custom')}><Play size={16} /></button>
+          </div>
+        )}
+        <button className="menu-item" disabled={busy} onClick={() => fileRef.current.click()}>
+          <Upload size={19} />{t.tonePick}
+        </button>
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="audio/*,.mp3,.wav,.ogg,.m4a"
+        hidden
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (f) choose({ id: 'custom', name: f.name, bytes: new Uint8Array(await f.arrayBuffer()), type: f.type });
+        }}
+      />
+    </Sheet>
+  );
+}
+
 export default function SettingsView() {
   const t = useT();
   const s = useSettings();
@@ -131,6 +190,14 @@ export default function SettingsView() {
             </div>
           </div>
 
+          <div className="side-label" style={{ paddingInline: 4 }}>{t.notifications}</div>
+          <div className="settings-group">
+            <button className="setting" style={{ width: '100%', textAlign: 'start' }} onClick={() => setSheet('tone')}>
+              <Music size={19} className="muted" /><span className="lbl">{t.tone}</span>
+              <span className="muted" style={{ fontSize: 13 }}>{getTone().id === 'custom' ? getTone().name : t['tone_' + getTone().id]}</span>{chev}
+            </button>
+          </div>
+
           <SyncSection />
           <BackupSection />
 
@@ -164,6 +231,7 @@ export default function SettingsView() {
       </div>
       {sheet === 'pw' && <ChangePassword onClose={() => setSheet(null)} />}
       {sheet === 'rk' && <NewRecovery onClose={() => setSheet(null)} />}
+      {sheet === 'tone' && <ToneSheet onClose={() => setSheet(null)} />}
     </>
   );
 }

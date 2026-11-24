@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRef } from 'react';
-import { ArrowRight, Plus, Lock, Pin, Star, MoreVertical, Mail, KeyRound, Phone, Copy, Search, X, ArrowUpDown, Check, Bell, FileText } from 'lucide-react';
+import { ArrowRight, Plus, Lock, Pin, Star, MoreVertical, Mail, KeyRound, Phone, Copy, Search, X, ArrowUpDown, Check, Bell, FileText, FolderPlus, Move } from 'lucide-react';
 import { fmtSize } from './Actions';
 import { KindIcon, kindColor } from './FileViewer';
 import { countdown } from './Editors';
@@ -11,7 +11,8 @@ import { useNav } from '../App';
 import * as V from '../vault';
 import { platformColor, htmlToText, fmtFull, FOLDER_ICONS, pageStyle, sortList } from '../constants';
 import { LockGate, copyText, Sheet } from './ui';
-import { useFolderMenu } from './Home';
+import { useFolderMenu, FolderGrid, FolderSheet } from './Home';
+import { folderHelpers } from '../constants';
 import { isDark } from '../settings';
 
 export function BackBtn() {
@@ -198,8 +199,13 @@ export default function FolderView({ id }) {
   const [q, setQ] = useState(null);
   const [openMenu, menuEl] = useFolderMenu();
   const [sorting, setSorting] = useState(false);
+  const [reorder, setReorder] = useState(false);
+  const [newSub, setNewSub] = useState(false);
   const st = useSettings();
   const f = folders.find((x) => x.id === id);
+  const h = folderHelpers(folders);
+  const subs = h.children(id);
+  const subCount = (fid) => ({ items: items.filter((i) => i.folderId === fid && !i.deletedAt && !i.archived).length, subs: h.children(fid).length });
   if (!f) return <div className="scroll"><div className="topbar"><BackBtn /></div></div>;
   const Icon = FOLDER_ICONS[f.icon] || FOLDER_ICONS.folder;
   const locked = f.lock && !V.isOpened(f.id);
@@ -256,7 +262,26 @@ export default function FolderView({ id }) {
       ) : (
         <div className="scroll">
           <div className="container" style={{ paddingTop: 6 }}>
-            {list.length === 0 ? (
+            {!q && (
+              <>
+                <div className="section-title" style={{ marginTop: 4 }}>
+                  <h3 className="muted" style={{ fontSize: 14 }}>{subs.length ? `${subs.length} ${t.subfolders}` : ''}</h3>
+                  <div className="row" style={{ gap: 6 }}>
+                    {subs.length > 1 && (
+                      <button className={'icon-btn sm' + (reorder ? ' active' : '')} title={t.reorder} onClick={() => setReorder(!reorder)}>{reorder ? <Check size={18} /> : <Move size={17} />}</button>
+                    )}
+                    {!reorder && <button className="chip-btn" onClick={() => setNewSub(true)}><FolderPlus size={16} />{t.newSubfolder}</button>}
+                  </div>
+                </div>
+                {reorder && <p className="hint sort-hint">✋ {t.reorderHint}</p>}
+                {subs.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <FolderGrid list={subs} count={subCount} onMenu={openMenu} grid={st.grid === 'lg' ? 'lg' : 'sm'} sorting={reorder} />
+                  </div>
+                )}
+              </>
+            )}
+            {list.length === 0 && subs.length > 0 && !q ? null : list.length === 0 ? (
               <div className="empty">
                 <div className="ico"><Icon size={34} /></div>
                 <div style={{ fontWeight: 700, color: 'var(--text)' }}>{q ? t.noResults : t.empty}</div>
@@ -276,6 +301,7 @@ export default function FolderView({ id }) {
       )}
       {menuEl}
       {sorting && <SortSheet onClose={() => setSorting(false)} />}
+      {newSub && <FolderSheet parentId={id} onClose={() => setNewSub(false)} />}
     </>
   );
 }

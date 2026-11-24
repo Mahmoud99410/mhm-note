@@ -3,7 +3,7 @@ import { MoreVertical, Pin, PinOff, Star, StarOff, Lock, Unlock, FolderInput, Ar
 import { useT } from '../settings';
 import { useNav } from '../App';
 import * as V from '../vault';
-import { htmlToText, FOLDER_ICONS } from '../constants';
+import { htmlToText, FOLDER_ICONS, folderHelpers } from '../constants';
 import { LockGate, MenuSheet, SetLockSheet, Sheet, toast } from './ui';
 import { BackBtn } from './Folder';
 import NoteEditor from './NoteEditor';
@@ -130,13 +130,13 @@ export default function ItemView({ id }) {
         <Sheet title={t.moveTo} onClose={() => setMoving(false)}>
           <div className="menu-list">
             {folders
-              .filter((f) => !f.deletedAt && f.id !== it.folderId && kindFits(f.kind, it.type))
+              .filter((f) => !folderHelpers(folders).deleted(f.id) && f.id !== it.folderId && kindFits(f.kind, it.type))
               .map((f) => {
                 const Icon = FOLDER_ICONS[f.icon] || FOLDER_ICONS.folder;
                 return (
                   <button key={f.id} className="menu-item" onClick={() => { update({ folderId: f.id }); setMoving(false); toast(t.done); }}>
                     <span className="folder-ico" style={{ '--fc': f.color, width: 34, height: 34, borderRadius: 10 }}><Icon size={17} /></span>
-                    {f.name}
+                    <span className="ellipsis">{folderHelpers(folders).path(f.id)}</span>
                   </button>
                 );
               })}
