@@ -79,13 +79,19 @@ export async function googleToken(interactive = false) {
   if (!googleAccount()) throw new Error('NEED_LOGIN');
   if (tok && tok.expiresAt > Date.now()) return tok.accessToken;
   if (platform === 'android') {
+    // 1) silent: no screen at all when Drive access was approved before
     try {
-      const r = await androidLogin(true);
+      const { registerPlugin } = await import('@capacitor/core');
+      const G = registerPlugin('MhmGoogle');
+      const r = await G.silentToken({ scope: GOOGLE.scope, email: googleAccount()?.email || '' });
       if (r.accessToken) {
         tok = { accessToken: r.accessToken, expiresAt: Date.now() + 50 * 60000 };
         return tok.accessToken;
       }
-    } catch {}
+    } catch (e) {
+      console.warn('silent token', e);
+    }
+    // 2) only when the user pressed "sync" themselves do we show Google's screen
     if (!interactive) throw new Error('NEED_LOGIN');
     await googleSignIn();
     return tok.accessToken;

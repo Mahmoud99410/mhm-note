@@ -9,7 +9,7 @@ import { BackBtn } from './Folder';
 import { Sheet, PasswordInput, copyText, toast } from './ui';
 import { SyncSection, BiometricRow, BackupSection } from './Cloud';
 
-export const APP_VERSION = '0.7.0';
+export const APP_VERSION = '0.7.1';
 
 function ChangePassword({ onClose }) {
   const t = useT();

@@ -14,6 +14,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(MhmTonePlugin.class);
+        registerPlugin(MhmGooglePlugin.class);
         super.onCreate(savedInstanceState);
     }
 
